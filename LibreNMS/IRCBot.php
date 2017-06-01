@@ -123,13 +123,16 @@ class IRCBot
             return true;
         }
 
-        $this->log('Caching external commands...');
+        $this->log('Caching external irc commands...');
         if (!is_array($this->config['irc_external'])) {
             $this->config['irc_external'] = explode(',', $this->config['irc_external']);
         }
 
-        foreach ($this->config['irc_external'] as $ext) {
-            if (($this->external[$ext] = file_get_contents('includes/ircbot/'.$ext.'.inc.php')) == '') {
+	foreach ($this->config['irc_external'] as $ext) {
+            $this->log("Caching irc-command $ext");
+            $this->external[$ext] = file_get_contents('includes/ircbot/'.$ext.'.inc.php');
+            if ($this->external[$ext] == '') {
+                $this->log("Caching irc-command failed");
                 unset($this->external[$ext]);
             }
         }
@@ -246,7 +249,9 @@ class IRCBot
                     $severity_extended = '';
             endswitch;
 
-            $severity = str_replace(array('warning', 'critical'), array(chr(3).'8Warning', chr(3).'4Critical'), $alert['severity']).$severity_extended.chr(3).' ';
+            if ($alert['severity']) {
+                $severity = str_replace(array('warning', 'critical'), array(chr(3).'8Warning', chr(3).'4Critical'), $alert['severity']).$severity_extended.chr(3).' ';
+            }
             if ($alert['state'] == 0 and $this->config['irc_alert_utf8']) {
                 $severity = str_replace(array('Warning', 'Critical'), array('̶W̶a̶r̶n̶i̶n̶g', '̶C̶r̶i̶t̶i̶c̶a̶l'), $severity);
             }
@@ -255,17 +260,11 @@ class IRCBot
                 foreach ($this->config['irc_alert_chan'] as $chan) {
                     $this->ircRaw('PRIVMSG '.$chan.' :'.$severity.trim($alert['title']));
                     foreach (explode("\n", $alert['msg']) as $line) {
-                        // We don't need to repeat the title
+                        $line = strip_tags($line);
                         if (trim($line) != trim($alert['title'])) {
                             $this->ircRaw('PRIVMSG '.$chan.' :'.$line);
                         }
                     }
-                    /*
-                    $this->ircRaw('PRIVMSG '.$chan.' :'.$severity.trim($alert['title']).' - Rule: '.trim($alert['name'] ? $alert['name'] : $alert['rule']).(sizeof($alert['faults']) > 0 ? ' - Faults:' : ''));
-                    foreach ($alert['faults'] as $k => $v) {
-                        $this->ircRaw('PRIVMSG '.$chan.' :#'.$k.' '.$v['string']);
-                    }
-                    */
                 }
             } else {
                 foreach ($this->authd as $nick => $data) {
@@ -293,7 +292,6 @@ class IRCBot
             if ($ex[0] == 'PING') {
                 return $this->ircRaw('PONG '.$ex[1]);
             }
-
             if ($ex[1] == 376 || $ex[1] == 422 || ($ex[1] == 'MODE' && $ex[2] == $this->nick)) {
                 if ($this->j == 2) {
                     $this->joinChan();
@@ -301,6 +299,27 @@ class IRCBot
                 }
             }
 
+	    if (preg_match("/^:".chr(1).".*/", $ex[3])) {
+                // Handle CTCP
+                $ctcp = trim(preg_replace("/[^A-Z]/", "", $ex[3]));
+                $ctcp_reply = NULL;
+		$this->log("Received irc CTCP: ".$ctcp." from ".$this->getUser($this->data));
+		switch($ctcp) {
+                    case 'VERSION':
+                       $ctcp_reply = chr(1)."$ctcp LibreNMS BOT - https://librenms.org/".chr(1);
+		       break;
+                    case 'PING':
+                       $ctcp_reply = chr(1)."$ctcp ".$ex[4]. " ".$ex[5].chr(1);
+		       break;
+                    case 'TIME':
+                       $ctcp_reply = chr(1)."$ctcp ".date('c').chr(1);
+		       break;
+		}
+		if ($ctcp_reply) {
+		    $this->log("Sending irc CTCP: ".'NOTICE '.$this->getUser($this->data)." :".$ctcp_reply);
+		    return $this->ircRaw('NOTICE '.$this->getUser($this->data)." :".$ctcp_reply);
+                }
+            }
             $this->command = str_replace(array(chr(10), chr(13)), '', $ex[3]);
             if (strstr($this->command, ':.')) {
                 $this->handleCommand();
@@ -328,6 +347,9 @@ class IRCBot
         $this->command = str_replace(':.', '', $this->command);
         $tmp           = explode(':.'.$this->command.' ', $this->data);
         $this->user    = $this->getAuthdUser();
+        if (!$this->isAuthd() && (isset($this->config['irc_auth']))) {
+            $this->hostAuth();
+        }
         if ($this->isAuthd() || trim($this->command) == 'auth') {
             $this->proceedCommand(str_replace("\n", '', trim($this->command)), trim($tmp[1]));
         }
@@ -342,11 +364,11 @@ class IRCBot
         $command = strtolower($command);
         if (in_array($command, $this->commands)) {
             $this->chkdb();
-            $this->log($command." ( '".$params."' )");
+            $this->log("irc ".$command." ( '".$params."' )");
             return $this->{'_'.$command}($params);
         } elseif ($this->external[$command]) {
             $this->chkdb();
-            $this->log($command." ( '".$params."' ) [Ext]");
+            $this->log("irc ".$command." ( '".$params."' ) [Ext]");
             return eval($this->external[$command]);
         }
 
@@ -375,6 +397,11 @@ class IRCBot
         return str_replace(':', '', $arrData[0]);
     }//end getUser()
 
+    private function getUserHost($param)
+    {
+        $arrData = explode(' ', $param, 2);
+        return str_replace(':', '', $arrData[0]);
+    }//end getUser()
 
     private function connect($try = 0)
     {
@@ -476,6 +503,36 @@ class IRCBot
         }
     }//end isAuthd()
 
+    private function hostAuth()
+    {   
+        foreach ($this->config['irc_auth'] as $nms_user => $hosts) {
+            foreach ($hosts as $host) {
+                $host = preg_replace("/\*/", ".*", $host);
+                if (preg_match("/$host/", $this->getUserHost($this->data))) {
+                    $user_id = get_userid(mres($nms_user));
+                    $user = get_user($user_id);
+                    $this->user['name'] = $user['username'];
+                    $this->user['id']   = $user_id;
+                    $this->user['level'] = get_userlevel($user['username']);
+                    $this->user['expire'] = (time() + ($this->config['irc_authtime'] * 3600));
+                    if ($this->user['level'] < 5) {
+                        foreach (dbFetchRows('SELECT device_id FROM devices_perms WHERE user_id = ?', array($this->user['id'])) as $tmp) {
+                            $this->user['devices'][] = $tmp['device_id'];
+                        }
+
+                        foreach (dbFetchRows('SELECT port_id FROM ports_perms WHERE user_id = ?', array($this->user['id'])) as $tmp) {
+                            $this->user['ports'][] = $tmp['port_id'];
+                        }
+                    }
+                    if ($this->debug) {
+                        $this->log("HostAuth on irc for '".$user['username']."', ID: '".$user_id."', Host: '".$host);
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
+    }//end hostAuth
 
     private function getAuthdUser()
     {
@@ -537,9 +594,13 @@ class IRCBot
     }//end _auth()
 
 
-    private function _reload()
+    private function _reload($params)
     {
-        if ($this->user['level'] == 10) {
+	if ($this->user['level'] == 10) {
+            if ($params == 'external') {
+                $this->loadExternal();
+		return $this->respond("Reloaded external scripts");
+	    }
             global $config;
             $config = array();
             include 'includes/defaults.inc.php';
@@ -724,6 +785,15 @@ class IRCBot
                 $devdown  = array_pop(dbFetchRow("SELECT count(*) FROM devices WHERE status = '0' AND `ignore` = '0'".$d_a));
                 $devign   = array_pop(dbFetchRow("SELECT count(*) FROM devices WHERE `ignore` = '1'".$d_a));
                 $devdis   = array_pop(dbFetchRow("SELECT count(*) FROM devices WHERE `disabled` = '1'".$d_a));
+                if ($devup > 0) {
+                    $devup = $this->_color($devup, 'green');
+                }
+                if ($devdown > 0) {
+                    $devdown = $this->_color($devdown, 'red');
+                    $devcount = $this->_color($devcount, 'orange', NULL, 'bold');
+                } else {
+                    $devcount = $this->_color($devcount, 'green', NULL, 'bold');
+                }
                 $msg      = 'Devices: '.$devcount.' ('.$devup.' up, '.$devdown.' down, '.$devign.' ignored, '.$devdis.' disabled'.')';
                 break;
 
@@ -736,6 +806,15 @@ class IRCBot
                 $prtsht   = array_pop(dbFetchRow("SELECT count(*) FROM ports AS I, devices AS D WHERE I.ifAdminStatus = 'down' AND I.ignore = '0' AND D.device_id = I.device_id AND D.ignore = '0'".$p_a));
                 $prtign   = array_pop(dbFetchRow("SELECT count(*) FROM ports AS I, devices AS D WHERE D.device_id = I.device_id AND (I.ignore = '1' OR D.ignore = '1')".$p_a));
                 $prterr   = array_pop(dbFetchRow("SELECT count(*) FROM ports AS I, devices AS D WHERE D.device_id = I.device_id AND (I.ignore = '0' OR D.ignore = '0') AND (I.ifInErrors_delta > '0' OR I.ifOutErrors_delta > '0')".$p_a));
+                if ($prtup > 0) {
+                    $prtup = $this->_color($prtup, 'green');
+                }
+                if ($prtdown > 0) {
+                    $prtdown = $this->_color($prtdown, 'red');
+                    $prtcount = $this->_color($prtcount, 'orange', NULL, 'bold');
+                } else {
+                    $prtcount = $this->_color($prtcount, 'green', NULL, 'bold');
+                }
                 $msg      = 'Ports: '.$prtcount.' ('.$prtup.' up, '.$prtdown.' down, '.$prtign.' ignored, '.$prtsht.' shutdown'.')';
                 break;
 
@@ -747,6 +826,15 @@ class IRCBot
                 $srvdown  = array_pop(dbFetchRow("SELECT count(service_id) FROM services WHERE service_status = '0' AND service_ignore = '0'".$d_a));
                 $srvign   = array_pop(dbFetchRow("SELECT count(service_id) FROM services WHERE service_ignore = '1'".$d_a));
                 $srvdis   = array_pop(dbFetchRow("SELECT count(service_id) FROM services WHERE service_disabled = '1'".$d_a));
+                if ($srvup > 0) {
+                    $srvup = $this->_color($srvup, 'green');
+                }
+                if ($srvdown > 0) {
+                    $srvdown = $this->_color($srvdown, 'red');
+                    $srvcount = $this->_color($srvcount, 'orange', NULL, 'bold');
+                } else {
+                    $srvcount = $this->_color($srvcount, 'green', NULL, 'bold');
+                }
                 $msg      = 'Services: '.$srvcount.' ('.$srvup.' up, '.$srvdown.' down, '.$srvign.' ignored, '.$srvdis.' disabled'.')';
                 break;
 
@@ -757,4 +845,126 @@ class IRCBot
 
         return $this->respond($msg);
     }//end _status()
+
+    private function _color($text, $fg_color, $bg_color=NULL, $other=NULL) 
+    {
+        $this->log('Color '.$text.' '.$fg_color);
+        $ret = chr(3);    
+        switch ($fg_color) {
+            case 'white':
+                $ret .= "00";
+                break;
+            case 'black':
+                $ret .= "01";
+                break;
+            case 'blue':
+                $ret .= "02";
+                break;
+            case 'green':
+                $ret .= "03";
+                break;
+            case 'red':
+                $ret .= "04";
+                break;
+            case 'brown':
+                $ret .= "05";
+                break;
+            case 'purple':
+                $ret .= "06";
+                break;
+            case 'orange':
+                $ret .= "07";
+                break;
+            case 'yellow':
+                $ret .= "08";
+                break;
+            case 'lightgreen':
+                $ret .= "09";
+                break;
+            case 'cyan':
+                $ret .= "10";
+                break;
+            case 'lightcyan':
+                $ret .= "11";
+                break;
+            case 'lightblue':
+                $ret .= "12";
+                break;
+            case 'pink':
+                $ret .= "13";
+                break;
+            case 'grey':
+                $ret .= "14";
+                break;
+            case 'lightgrey':
+                $ret .= "15";
+                break;
+        }
+        switch ($bg_color) {
+            case 'white':
+                $ret .= ",00";
+                break;
+            case 'black':
+                $ret .= ",01";
+                break;
+            case 'blue':
+                $ret .= ",02";
+                break;
+            case 'green':
+                $ret .= ",03";
+                break;
+            case 'red':
+                $ret .= ",04";
+                break;
+            case 'brown':
+                $ret .= ",05";
+                break;
+            case 'purple':
+                $ret .= ",06";
+                break;
+            case 'orange':
+                $ret .= ",07";
+                break;
+            case 'yellow':
+                $ret .= ",08";
+                break;
+            case 'lightgreen':
+                $ret .= ",09";
+                break;
+            case 'cyan':
+                $ret .= ",10";
+                break;
+            case 'lightcyan':
+                $ret .= ",11";
+                break;
+            case 'lightblue':
+                $ret .= ",12";
+                break;
+            case 'pink':
+                $ret .= ",13";
+                break;
+            case 'grey':
+                $ret .= ",14";
+                break;
+            case 'lightgrey':
+                $ret .= ",15";
+                break;
+        }    
+        switch ($other) {
+            case 'bold':
+                $ret .= chr(2);
+                break;
+            case 'underline':
+                $ret .= chr(31);
+                break;
+            case 'italics':
+            case 'reverse':
+                $ret .= chr(22);
+                break;
+        }
+        $ret .= $text;
+        $ret .= chr(15);
+        return $ret;
+    }// end _color
+
 }//end class
