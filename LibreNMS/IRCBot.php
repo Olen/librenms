@@ -25,7 +25,7 @@ use LibreNMS\Exceptions\DatabaseConnectException;
 class IRCBot
 {
 
-    private $last_activity = '';
+    private $last_activity = 0;
 
     private $data = '';
 
@@ -42,6 +42,8 @@ class IRCBot
     private $pass = '';
 
     private $nick = 'LibreNMS';
+
+    private $tempnick = null;
 
     private $chan = array();
 
@@ -60,9 +62,15 @@ class IRCBot
         'join',
     );
 
+    private $command = '';
+
     private $external = array();
 
     private $tick = 62500;
+
+    private $j = 0;
+
+    private $socket = array();
 
 
     public function __construct()
@@ -250,26 +258,34 @@ class IRCBot
                     $severity_extended = '';
             endswitch;
 
-            $severity = str_replace(array('warning', 'critical'), array(_color('Warning', 'orange'), _color('Critical', 'red')), $alert['severity']).$severity_extended.' ';
+            if (isset($alert['severity'])) {
+                $severity = str_replace(array('warning', 'critical'), array($this->_color('Warning', 'yellow'), $this->_color('Critical', 'red')), $alert['severity']).$severity_extended.' ';
+            }
             if ($alert['state'] == 0 and $this->config['irc_alert_utf8']) {
                 $severity = str_replace(array('Warning', 'Critical'), array('̶W̶a̶r̶n̶i̶n̶g', '̶C̶r̶i̶t̶i̶c̶a̶l'), $severity);
             }
 
             if ($this->config['irc_alert_chan']) {
                 foreach ($this->config['irc_alert_chan'] as $chan) {
-                    $this->ircRaw('PRIVMSG '.$chan.' :'.$severity.trim($alert['title']).' - Rule: '.trim($alert['name'] ? $alert['name'] : $alert['rule']).(sizeof($alert['faults']) > 0 ? ' - Faults:' : ''));
-                    foreach ($alert['faults'] as $k => $v) {
-                        $this->ircRaw('PRIVMSG '.$chan.' :#'.$k.' '.$v['string']);
+                    $this->ircRaw('PRIVMSG '.$chan.' :'.$severity.trim($alert['title']));
+                    foreach (explode("\n", $alert['msg']) as $line) {
+			    // We don't need to repeat the title
+                        $line = strip_tags($line);
+                        if (trim($line) != trim($alert['title'])) {
+                            $this->ircRaw('PRIVMSG '.$chan.' :'.$line);
+                        }
                     }
+                    $this->ircRaw('BOTFLOODCHECK');
                 }
             } else {
                 foreach ($this->authd as $nick => $data) {
                     if ($data['expire'] >= time()) {
-                        $this->ircRaw('PRIVMSG '.$nick.' :'.$severity.trim($alert['title']).' - Rule: '.trim($alert['name'] ? $alert['name'] : $alert['rule']).(sizeof($alert['faults']) > 0 ? ' - Faults'.(sizeof($alert['faults']) > 3 ? ' (showing first 3 out of '.sizeof($alert['faults']).' )' : '' ).':' : ''));
-                        foreach ($alert['faults'] as $k => $v) {
-                            $this->ircRaw('PRIVMSG '.$nick.' :#'.$k.' '.$v['string']);
-                            if ($k >= 3) {
-                                break;
+                        $this->ircRaw('PRIVMSG '.$nick.' :'.$severity.trim($alert['title']));
+                        foreach (explode("\n", $alert['msg']) as $line) {
+                            // We don't need to repeat the title
+                            $line = strip_tags($line);
+                            if (trim($line) != trim($alert['title'])) {
+                                $this->ircRaw('PRIVMSG '.$nick.' :'.$line);
                             }
                         }
                     }
@@ -661,11 +677,11 @@ class IRCBot
 
     private function _help($params)
     {
-        foreach ($this->commands as $cmd) {
-            $msg .= ', '.$cmd;
+        $msg = join(', ', $this->commands);
+        if (count($this->external) > 0) {
+            $msg .= ', '. join(', ', array_keys($this->external));
         }
 
-        $msg = substr($msg, 2);
         return $this->respond("Available commands: $msg");
     }//end _help()
 
@@ -813,7 +829,7 @@ class IRCBot
                 }
                 if ($devdown > 0) {
                     $devdown = $this->_color($devdown, 'red');
-                    $devcount = $this->_color($devcount, 'orange', null, 'bold');
+                    $devcount = $this->_color($devcount, 'yellow', null, 'bold');
                 } else {
                     $devcount = $this->_color($devcount, 'green', null, 'bold');
                 }
@@ -834,7 +850,7 @@ class IRCBot
                 }
                 if ($prtdown > 0) {
                     $prtdown = $this->_color($prtdown, 'red');
-                    $prtcount = $this->_color($prtcount, 'orange', null, 'bold');
+                    $prtcount = $this->_color($prtcount, 'yellow', null, 'bold');
                 } else {
                     $prtcount = $this->_color($prtcount, 'green', null, 'bold');
                 }
@@ -854,7 +870,7 @@ class IRCBot
                 }
                 if ($srvdown > 0) {
                     $srvdown = $this->_color($srvdown, 'red');
-                    $srvcount = $this->_color($srvcount, 'orange', null, 'bold');
+                    $srvcount = $this->_color($srvcount, 'yellow', null, 'bold');
                 } else {
                     $srvcount = $this->_color($srvcount, 'green', null, 'bold');
                 }
@@ -890,9 +906,9 @@ class IRCBot
             'lightgrey' => "15",
         );
         $ret = chr(3);
-        if (in_array($fg_color, $colors)) {
+        if (array_key_exists($fg_color, $colors)) {
             $ret .= $colors[$fg_color];
-            if (in_array($bg_color, $colors)) {
+            if (array_key_exists($bg_color, $colors)) {
                 $ret .= ",".$colors[$fg_color];
             }
         }
