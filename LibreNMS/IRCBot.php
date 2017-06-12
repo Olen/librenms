@@ -269,7 +269,7 @@ class IRCBot
                 foreach ($this->config['irc_alert_chan'] as $chan) {
                     $this->ircRaw('PRIVMSG '.$chan.' :'.$severity.trim($alert['title']));
                     foreach (explode("\n", $alert['msg']) as $line) {
-			    // We don't need to repeat the title
+                        // We don't need to repeat the title
                         $line = strip_tags($line);
                         if (trim($line) != trim($alert['title'])) {
                             $this->ircRaw('PRIVMSG '.$chan.' :'.$line);
