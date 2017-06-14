@@ -162,7 +162,8 @@ class IRCBot
             fwrite($this->socket['irc'], 'PASS '.$this->pass."\n\r");
         }
 
-        $this->doAuth();
+	$this->doAuth();
+	$this->nickwait = 0;
         while (true) {
             foreach ($this->socket as $n => $socket) {
                 if (!is_resource($socket) || feof($socket)) {
@@ -171,8 +172,12 @@ class IRCBot
                 }
             }
 
-            if (isset($this->tempnick)) {
-                 $this->ircRaw('NICK '.$this->nick);
+	    if (isset($this->tempnick)) {
+                 if ($this->nickwait > 100) {
+                     $this->ircRaw('NICK '.$this->nick);
+		     $this->nickwait = 0;
+                 }
+                 $this->nickwait += 1;
             }
 
             $this->getData();
@@ -245,6 +250,9 @@ class IRCBot
             $alert = json_decode($alert, true);
             if (!is_array($alert)) {
                 return false;
+            }
+            if ($this->debug) {
+                $this->log("Alert received ".$alert['title']);
             }
 
             switch ($alert['state']) :
@@ -553,6 +561,9 @@ class IRCBot
         foreach ($this->config['irc_auth'] as $nms_user => $hosts) {
             foreach ($hosts as $host) {
                 $host = preg_replace("/\*/", ".*", $host);
+                if ($this->debug) {
+                    $this->log("HostAuth on irc matching $host to ".$this->getUserHost($this->data));
+                }
                 if (preg_match("/$host/", $this->getUserHost($this->data))) {
                     $user_id = get_userid(mres($nms_user));
                     $user = get_user($user_id);
@@ -634,9 +645,13 @@ class IRCBot
     }//end _auth()
 
 
-    private function _reload()
+    private function _reload($params)
     {
         if ($this->user['level'] == 10) {
+            if ($params == 'external') {
+                $this->respond('Reloading external scripts.');
+                return $this->loadExternal();
+            }
             global $config;
             $config = array();
             $config['install_dir'] = $this->config['install_dir'];
@@ -710,9 +725,35 @@ class IRCBot
             $tmp = dbFetchRows('SELECT `event_id`,`host`,`datetime`,`message`,`type` FROM `eventlog` ORDER BY `event_id` DESC LIMIT '.mres($num));
         }
 
+        $floodcount = 0;
         foreach ($tmp as $device) {
             $hostid = dbFetchRow('SELECT `hostname` FROM `devices` WHERE `device_id` = '.$device['host']);
-            $this->respond($device['event_id'].' '.$hostid['hostname'].' '.$device['datetime'].' '.$device['message'].' '.$device['type']);
+            $response  = $device['datetime'].' ';
+	    $response .= $this->_color($hostid['hostname'], null, null, 'bold').' ';
+            if ($this->config['irc_alert_utf8']) {
+	        if (preg_match('/critical alert/', $device['message'])) {
+                    $response .= preg_replace('/critical alert/', $this->_color('critical alert', 'red'), $device['message']).' ';
+                } elseif (preg_match('/warning alert/', $device['message'])) {
+                    $response .= preg_replace('/warning alert/', $this->_color('warning alert', 'yellow'), $device['message']).' ';
+                } elseif (preg_match('/recovery/', $device['message'])) {
+	            $response .= preg_replace('/recovery/', $this->_color('recovery', 'green'), $device['message']).' ';
+	        } else {
+                    $response .= $device['message'].' ';
+		}
+            } else {
+                $response .= $device['message'].' ';
+            }
+	    if ($device['type'] != 'NULL') {
+                $response .= $device['type'].' ';
+	    }
+	    if ($floodcount > 5) {
+                $this->ircRaw('BOTFLOODCHECK');
+                sleep(1);
+                $floodcount = 0;
+	    }
+            $this->respond($response);
+            $floodcount += 1;
+            # $this->respond($device['event_id'].' '.$hostid['hostname'].' '.$device['datetime'].' '.$device['message'].' '.$device['type']);
         }
 
         if (!$hostid) {

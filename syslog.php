@@ -19,8 +19,9 @@ $i = "1";
 
 $s = fopen('php://stdin', 'r');
 while ($line = fgets($s)) {
-    #logfile($line);
+    # logfile("0: ".$line);
     list($entry['host'],$entry['facility'],$entry['priority'], $entry['level'], $entry['tag'], $entry['timestamp'], $entry['msg'], $entry['program']) = explode("||", trim($line));
+    # logfile("1: ".print_r($entry, TRUE));
     process_syslog($entry, 1);
     unset($entry);
     unset($line);
