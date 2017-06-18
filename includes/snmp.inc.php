@@ -284,7 +284,9 @@ function snmp_walk($device, $oid, $options = null, $mib = null, $mibdir = null)
     $time_start = microtime(true);
 
     $cmd = gen_snmpwalk_cmd($device, $oid, $options, $mib, $mibdir);
+    # print "$cmd\n";
     $data = trim(external_exec($cmd));
+
 
     $data = str_replace('"', '', $data);
     $data = str_replace('End of MIB', '', $data);
@@ -688,6 +690,7 @@ function snmp_mib_parse($oid, $mib, $module, $mibdir = null, $device = array())
 
     $result = array();
     $lines  = preg_split('/\n+/', trim(shell_exec($cmd)));
+    d_echo("snmp_mib_parse $cmd => " . print_r($lines, TRUE));
     foreach ($lines as $l) {
         $f = preg_split('/\s+/', trim($l));
         // first line is all numeric
@@ -766,9 +769,11 @@ function snmp_mib_walk($mib, $module, $mibdir = null, $device = array())
     $cmd   .= ' -m '.$module;
     $result = array();
     $data   = preg_split('/\n+/', shell_exec($cmd));
+    d_echo("snmp_mib_walk " . print_r($data, TRUE));
     foreach ($data as $oid) {
         // only include oids which are part of this mib
-        if (strstr($oid, $mib)) {
+	    if (strstr($oid, $mib)) {
+		    d_echo("We have a winner!!");
             $obj = snmp_mib_parse($oid, $mib, $module, $mibdir, $device);
             if ($obj) {
                 $result[] = $obj;
@@ -832,6 +837,7 @@ function update_db_table($tablename, $columns, $numkeys, $rows)
  */
 function snmp_mib_load($mib, $module, $included_by, $mibdir = null, $device = array())
 {
+	d_echo("snmp_mib_load $mib, $module, $included_by, $mibdir " . print_r($device, TRUE));
     $mibs = array();
     foreach (snmp_mib_walk($mib, $module, $mibdir, $device) as $obj) {
         $mibs[$obj['object_type']] = $obj;
@@ -1103,7 +1109,7 @@ function register_mibs($device, $mibs, $included_by)
         return;
     }
 
-    d_echo("MIB: registering\n");
+    d_echo("MIB: registering from $included_by\n");
 
     foreach ($mibs as $name => $module) {
         $translated = snmp_translate($name, $module, null, $device);

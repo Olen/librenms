@@ -276,9 +276,11 @@ class IRCBot
             if ($this->config['irc_alert_chan']) {
                 foreach ($this->config['irc_alert_chan'] as $chan) {
                     $this->ircRaw('PRIVMSG '.$chan.' :'.$severity.trim($alert['title']));
-                    foreach (explode("\n", $alert['msg']) as $line) {
+		    foreach (explode("\n", $alert['msg']) as $line) {
+                        if (!preg_match("/IDP_ATTACK_LOG_EVENT/", $line)) {
+                            $line = strip_tags($line);
+                        }
                         // We don't need to repeat the title
-                        $line = strip_tags($line);
                         if (trim($line) != trim($alert['title'])) {
                             $this->ircRaw('PRIVMSG '.$chan.' :'.$line);
                         }
@@ -514,7 +516,7 @@ class IRCBot
 
     private function log($msg)
     {
-        echo '['.date('r').'] '.trim($msg)."\n";
+        echo '['.date('r').'] IRCbot '.trim($msg)."\n";
         return true;
     }//end log()
 
