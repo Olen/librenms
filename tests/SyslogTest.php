@@ -68,7 +68,7 @@ class SyslogTest extends \PHPUnit\Framework\TestCase
     {
         // populate fake $dev_cache and $config
         global $config, $dev_cache;
-        $dev_cache['1.1.1.1'] = array('device_id' => 1, 'os' => 'ios', 'version' => 1);
+        $dev_cache['1.1.1.1'] = array('device_id' => 1, 'os' => 'ios', 'version' => 1, 'hostname' => 'cisco-switch1');
         $config = array();
         $config['syslog_filter'] = array();
 
@@ -150,7 +150,7 @@ class SyslogTest extends \PHPUnit\Framework\TestCase
     {
         // populate fake $dev_cache and $config
         global $config, $dev_cache;
-        $dev_cache['1.1.1.1'] = array('device_id' => 1, 'os' => 'linux', 'version' => 1);
+        $dev_cache['1.1.1.1'] = array('device_id' => 1, 'os' => 'linux', 'version' => 1, 'hostname' => 'linux-server1');
         $config = array();
         $config['syslog_filter'] = array();
 
@@ -203,7 +203,7 @@ class SyslogTest extends \PHPUnit\Framework\TestCase
     {
         // populate fake $dev_cache and $config
         global $config, $dev_cache;
-        $dev_cache['1.1.1.1'] = array('device_id' => 1, 'os' => 'procurve', 'version' => 1);
+        $dev_cache['1.1.1.1'] = array('device_id' => 1, 'os' => 'procurve', 'version' => 1, 'hostname' => 'procurve-switch1');
         $config = array();
         $config['syslog_filter'] = array();
 
