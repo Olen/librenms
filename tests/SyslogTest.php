@@ -239,20 +239,12 @@ class SyslogTest extends \PHPUnit\Framework\TestCase
     {
         // populate fake $dev_cache and $config
         global $config, $dev_cache;
-<<<<<<< HEAD
-        $dev_cache['1.1.1.1'] = array('device_id' => 1, 'os' => 'zywall', 'version' => 1);
-=======
         $dev_cache['1.1.1.1'] = array('device_id' => 1, 'os' => 'zywall', 'version' => 1, 'hostname' => 'zywall');
->>>>>>> 5e32474d26cc30c44bad82fc3e926c0183e8e020
         $config = array();
         $config['syslog_filter'] = array();
 
         // ---- USG60W ----
-<<<<<<< HEAD
-	$this->checkSyslog(
-=======
         $this->checkSyslog(
->>>>>>> 5e32474d26cc30c44bad82fc3e926c0183e8e020
             "1.1.1.1||local1||info||info||8e||2017-06-14 17:51:25||0\" dst=\"0.0.0.0:0\" msg=\"DHCP server assigned 195.159.132.109 to Chromecast(6C:AD:F8:B1:10:1D)\" note=\"DHCP ACK\" user=\"unknown\" devID=\"a0e4cb7d7f52\" cat=\"DHCP\"||src=\"0.0.0.0",
             array('device_id'=>1, 'program'=>'DHCP', 'msg'=>'src="0.0.0.0:0" dst="0.0.0.0:0" msg="DHCP server assigned 195.159.132.109 to Chromecast(6C:AD:F8:B1:10:1D)" note="DHCP ACK" user="unknown" devID="a0e4cb7d7f52" cat="DHCP"')
         );
