@@ -133,12 +133,7 @@ function discover_device(&$device, $options = null)
     }
 
     load_os($device);
-<<<<<<< HEAD
-    d_echo("OLEN OS: " . print_r($device, TRUE));
-    d_echo("OLEN OS: " . print_r($config['os'], TRUE));
-=======
     load_discovery($device);
->>>>>>> 5e32474d26cc30c44bad82fc3e926c0183e8e020
     if (is_array($config['os'][$device['os']]['register_mibs'])) {
         register_mibs($device, $config['os'][$device['os']]['register_mibs'], 'includes/discovery/os/' . $device['os'] . '.inc.php');
     }
