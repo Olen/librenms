@@ -126,7 +126,7 @@ function process_syslog($entry, $update)
                 $entry['program'] = $matches['program'];
             }
             unset($matches);
-        } elseif ($os == 'zywall') {
+        } elseif (($os == 'zywall') || ($os == 'zyxelnwa')) {
             // Zwwall sends messages without all the fields, so the offset is wrong
             $msg = preg_replace("/\" /", '";', stripslashes($entry['program'].':'.$entry['msg']));
             $msg = str_getcsv($msg, ';');
