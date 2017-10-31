@@ -1,8 +1,8 @@
 <?php
 /**
- * hpe-ipdu.inc.php
+ * serverscheck.inc.php
  *
- * LibreNMS sensors load discovery module for HPE iPDU
+ * LibreNMS sensors pre-cache discovery module for ServersCheck
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,26 +20,7 @@
  * @package    LibreNMS
  * @link       http://librenms.org
  * @copyright  2017 Neil Lathwood
- * @author     Neil Lathwood <neil@lathwood.co.uk>
+ * @author     Neil Lathwood <gh+n@laf.io>
  */
 
-
-echo 'HPE iPDU Load ';
-
-$x=1;
-foreach ($pre_cache['hpe_ipdu'] as $index => $item) {
-    if (isset($item['mpduOutputPercentLoad'])) {
-        $oid = '.1.3.6.1.4.1.232.165.5.2.1.1.5.' . $index;
-        $current = $item['mpduOutputPercentLoad'];
-        discover_sensor($valid['sensor'], 'load', $device, $oid, 'mpduOutputPercentLoad.'.$index, 'hpe-ipdu', "MPDU #$x Load", 10, 1, null, null, null, null, $current);
-        $x++;
-    }
-}//end foreach
-
-unset(
-    $item,
-    $oid,
-    $index,
-    $item,
-    $x
-);
+$pre_cache['serverscheck_control'] = snmpwalk_group($device, 'control', 'SERVERSCHECK-MIB');
