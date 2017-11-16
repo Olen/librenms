@@ -83,6 +83,7 @@ pages:
       - Alerting/Entities.md
       - Alerting/Macros.md
       - Alerting/Testing.md
+      - Alerting/Rule-Mapping.md
   - 9. Getting help:
       - Support/FAQ.md
       - Support/Install Validation.md
