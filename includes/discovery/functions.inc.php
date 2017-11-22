@@ -104,8 +104,9 @@ function load_discovery(&$device)
         $device['dynamic_discovery'] = Symfony\Component\Yaml\Yaml::parse(
             file_get_contents($yaml_discovery)
         );
+    } else {
+        unset($device['dynamic_discovery']);
     }
-    unset($yaml_discovery);
 }
 
 function discover_device(&$device, $options = null)
@@ -206,7 +207,7 @@ function discover_device(&$device, $options = null)
 //end discover_device()
 
 // Discover sensors
-function discover_sensor(&$valid, $class, $device, $oid, $index, $type, $descr, $divisor = 1, $multiplier = 1, $low_limit = null, $low_warn_limit = null, $warn_limit = null, $high_limit = null, $current = null, $poller_type = 'snmp', $entPhysicalIndex = null, $entPhysicalIndex_measured = null, $user_func = null, $entity_link_type = null, $entity_link_index = 0)
+function discover_sensor(&$valid, $class, $device, $oid, $index, $type, $descr, $divisor = 1, $multiplier = 1, $low_limit = null, $low_warn_limit = null, $warn_limit = null, $high_limit = null, $current = null, $poller_type = 'snmp', $entPhysicalIndex = null, $entPhysicalIndex_measured = null, $user_func = null)
 {
     $low_limit      = set_null($low_limit);
     $low_warn_limit = set_null($low_warn_limit);
@@ -260,8 +261,6 @@ function discover_sensor(&$valid, $class, $device, $oid, $index, $type, $descr, 
             'entPhysicalIndex' => $entPhysicalIndex,
             'entPhysicalIndex_measured' => $entPhysicalIndex_measured,
             'user_func' => $user_func,
-            'entity_link_type' => $entity_link_type,
-            'entity_link_index' => $entity_link_index,
         );
 
         foreach ($insert as $key => $val_check) {
@@ -346,9 +345,7 @@ function discover_sensor(&$valid, $class, $device, $oid, $index, $type, $descr, 
             $divisor == $sensor_entry['sensor_divisor'] &&
             $entPhysicalIndex_measured == $sensor_entry['entPhysicalIndex_measured'] &&
             $entPhysicalIndex == $sensor_entry['entPhysicalIndex'] &&
-            $user_func == $sensor_entry['user_func'] &&
-            $entity_link_type == $sensor_entry['entity_link_type'] &&
-            $entity_link_index == $sensor_entry['entity_link_index']
+            $user_func == $sensor_entry['user_func']
 
         ) {
             echo '.';
@@ -361,8 +358,6 @@ function discover_sensor(&$valid, $class, $device, $oid, $index, $type, $descr, 
                 'entPhysicalIndex' => $entPhysicalIndex,
                 'entPhysicalIndex_measured' => $entPhysicalIndex_measured,
                 'user_func' => $user_func,
-                'entity_link_type' => $entity_link_type,
-                'entity_link_index' => $entity_link_index,
             );
             $updated = dbUpdate($update, 'sensors', '`sensor_id` = ?', array($sensor_entry['sensor_id']));
             echo 'U';
@@ -1074,10 +1069,12 @@ function dynamic_discovery_get_value($name, $index, $discovery_data, $pre_cache,
 
     if (isset($pre_cache[$name])) {
         if (is_array($pre_cache[$name])) {
-            if (count($pre_cache[$name]) === 1) {
-                return current($pre_cache[$name]);
+            if (isset($pre_cache[$name][$index][$name])) {
+                return $pre_cache[$name][$index][$name];
             } elseif (isset($pre_cache[$index][$name])) {
                 return $pre_cache[$index][$name];
+            } elseif (count($pre_cache[$name]) === 1) {
+                return current($pre_cache[$name]);
             }
         } else {
             return $pre_cache[$name];
