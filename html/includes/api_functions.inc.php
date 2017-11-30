@@ -506,6 +506,31 @@ function list_bgp()
 }
 
 
+function get_bgp()
+{
+    check_is_read();
+
+    $app        = \Slim\Slim::getInstance();
+    $router = $app->router()->getCurrentRoute()->getParams();
+
+    $bgpPeerId        = $router['id'];
+    if (!is_numeric($bgpPeerId)) {
+        api_error(400, 'Invalid id has been provided');
+    }
+
+    $bgp_session       = dbFetchRows("SELECT * FROM `bgpPeers` WHERE `bgpPeerState` IS NOT NULL AND `bgpPeerState` != '' AND bgpPeer_id = ?", array($bgpPeerId));
+    $bgp_session_count = count($bgp_session);
+    if (!is_numeric($bgp_session_count)) {
+        api_error(500, 'Error retrieving BGP peer');
+    }
+    if ($bgp_session_count == 0) {
+        api_error(404, "BGP peer $bgpPeerId does not exist");
+    }
+
+    api_success($bgp_session, 'bgp_session');
+}
+
+
 function list_ospf()
 {
     check_is_read();
@@ -799,7 +824,7 @@ function get_all_ports()
     validate_column_list($columns, 'ports');
     $params = array();
     $sql = '';
-    if (!is_read()) {
+    if (!is_read() && !is_admin()) {
         $sql = ' AND (device_id IN (SELECT device_id FROM devices_perms WHERE user_id = ?) OR port_id IN (SELECT port_id FROM ports_perms WHERE user_id = ?))';
         array_push($params, $_SESSION['user_id']);
         array_push($params, $_SESSION['user_id']);
