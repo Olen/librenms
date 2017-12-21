@@ -25,7 +25,6 @@
 
 namespace LibreNMS\Tests;
 
-# class SyslogTest extends \PHPUnit_Framework_TestCase
 class SyslogTest extends \PHPUnit\Framework\TestCase
 {
 
