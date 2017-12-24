@@ -20,22 +20,22 @@ use LibreNMS\Config;
 use LibreNMS\Exceptions\InvalidIpException;
 use LibreNMS\Util\IP;
 
-function generate_priority_icon($priority)
+function generate_priority_label($priority)
 {
     $map = array(
-        "emerg"     => "fa-plus-circle text-danger",
-        "alert"     => "fa-ban text-danger",
-        "crit"      => "fa-minus-circle text-danger",
-        "err"       => "fa-times-circle text-warning",
-        "warning"   => "fa-exclamation-triangle text-warning",
-        "notice"    => "fa-info-circle text-info",
-        "info"      => "fa-info-circle text-info",
-        "debug"     => "fa-bug text-muted",
-        ""          => "fa-info-circle text-info",
+        "emerg"     => "label-danger",
+        "alert"     => "label-danger",
+        "crit"      => "label-danger",
+        "err"       => "label-danger",
+        "warning"   => "label-warning",
+        "notice"    => "label-info",
+        "info"      => "label-info",
+        "debug"     => "label-default",
+        ""          => "label-info",
     );
 
-    $fa_icon = isset($map[$priority]) ? $map[$priority] : 'fa-info-circle text-info';
-    return '<i class="fa '. $fa_icon.' fa-lg" title="'.$priority.'" aria-hidden="true"></i>';
+    $barColor = isset($map[$priority]) ? $map[$priority] : 'label-info';
+    return '<span class="alert-status '.$barColor .'">&nbsp;</span>';
 }
 
 function generate_priority_status($priority)
@@ -53,6 +53,23 @@ function generate_priority_status($priority)
     );
 
     return isset($map[$priority]) ? $map[$priority] : 0;
+}
+
+function graylog_severity_label($severity)
+{
+    $map = array(
+        "0" => "label-danger",
+        "1" => "label-danger",
+        "2" => "label-danger",
+        "3" => "label-danger",
+        "4" => "label-warning",
+        "5" => "label-info",
+        "6" => "label-info",
+        "7" => "label-default",
+        ""  => "label-info",
+    );
+    $barColor = isset($map[$severity]) ? $map[$severity] : 'label-info';
+    return '<span class="alert-status '.$barColor .'">&nbsp;</span>';
 }
 
 function external_exec($command)

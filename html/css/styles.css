@@ -2157,26 +2157,8 @@ label {
   margin-right: 15px;
 }
 
-.severity-ok {
-  color: green;
-}
-
-.severity-info {
-  color: royalblue;
-}
-
-.severity-notice {
-  color: gold;
-}
-
-.severity-warning {
-  color: darkorange;
-}
-
-.severity-critical {
-  color: red;
-}
-
-.severity-unknown {
-  color: darkgrey;
+.alert-status {
+  display: inline-block;
+  width: 7px;
+  min-height: 27px;
 }
