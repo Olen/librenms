@@ -734,30 +734,35 @@ class IRCBot
         foreach ($tmp as $device) {
             $hostid = dbFetchRow('SELECT `hostname` FROM `devices` WHERE `device_id` = '.$device['host']);
             $response  = $device['datetime'].' ';
-	    $response .= $this->_color($hostid['hostname'], null, null, 'bold').' ';
+            $response .= $this->_color($hostid['hostname'], null, null, 'bold').' ';
             if ($this->config['irc_alert_utf8']) {
-	        if (preg_match('/critical alert/', $device['message'])) {
+                if (preg_match('/critical alert/', $device['message'])) {
                     $response .= preg_replace('/critical alert/', $this->_color('critical alert', 'red'), $device['message']).' ';
                 } elseif (preg_match('/warning alert/', $device['message'])) {
                     $response .= preg_replace('/warning alert/', $this->_color('warning alert', 'yellow'), $device['message']).' ';
                 } elseif (preg_match('/recovery/', $device['message'])) {
-	            $response .= preg_replace('/recovery/', $this->_color('recovery', 'green'), $device['message']).' ';
-	        } else {
+                    $response .= preg_replace('/recovery/', $this->_color('recovery', 'green'), $device['message']).' ';
+                } else {
                     $response .= $device['message'].' ';
-		}
+                }
             } else {
                 $response .= $device['message'].' ';
             }
-	    if ($device['type'] != 'NULL') {
+            if ($device['type'] != 'NULL') {
                 $response .= $device['type'].' ';
-	    }
-	    if ($floodcount > 5) {
+            }
+            if ($this->config['irc_floodlimit'] > 100) {
+                $floodcount += strlen($response);
+            }
+            elseif ($this->config['irc_floodlimit'] > 1) {
+                $floodcount += 1;
+            }
+            if (($this->config['irc_floodlimit'] > 0) && ($floodcount > $this->config['irc_floodlimit'])) {
                 $this->ircRaw('BOTFLOODCHECK');
-                sleep(1);
+                sleep(2);
                 $floodcount = 0;
-	    }
+            }
             $this->respond($response);
-            $floodcount += 1;
             # $this->respond($device['event_id'].' '.$hostid['hostname'].' '.$device['datetime'].' '.$device['message'].' '.$device['type']);
         }
 
