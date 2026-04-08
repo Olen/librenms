@@ -14,7 +14,7 @@ class GetPorts extends AbstractAiTool
 
     public function description(): string
     {
-        return 'Returns network port/interface information. Filter by device, operational status, or ports with errors. Includes traffic rates and error counters.';
+        return 'Returns network port/interface information. Filter by device, operational status, or ports with errors. Includes current traffic rates (bps), utilization percentage relative to port speed, and error counters. Use for "which ports are most utilized?" or "show ports with high traffic on switch-1".';
     }
 
     public function parameters(): array
@@ -91,8 +91,13 @@ class GetPorts extends AbstractAiTool
                 'ifOperStatus' => $p->ifOperStatus,
                 'ifAdminStatus' => $p->ifAdminStatus,
                 'ifSpeed' => $p->ifSpeed,
-                'in_rate' => $p->ifInOctets_rate,
-                'out_rate' => $p->ifOutOctets_rate,
+                'ifSpeed_human' => $p->ifSpeed ? \LibreNMS\Util\Number::formatSi($p->ifSpeed, 2, 0, 'bps') : null,
+                'in_rate_bps' => $p->ifInOctets_rate ? $p->ifInOctets_rate * 8 : 0,
+                'out_rate_bps' => $p->ifOutOctets_rate ? $p->ifOutOctets_rate * 8 : 0,
+                'in_rate_human' => $p->ifInOctets_rate ? \LibreNMS\Util\Number::formatSi($p->ifInOctets_rate * 8, 2, 0, 'bps') : '0 bps',
+                'out_rate_human' => $p->ifOutOctets_rate ? \LibreNMS\Util\Number::formatSi($p->ifOutOctets_rate * 8, 2, 0, 'bps') : '0 bps',
+                'in_utilization_pct' => ($p->ifSpeed > 0 && $p->ifInOctets_rate) ? round(($p->ifInOctets_rate * 8 / $p->ifSpeed) * 100, 1) : null,
+                'out_utilization_pct' => ($p->ifSpeed > 0 && $p->ifOutOctets_rate) ? round(($p->ifOutOctets_rate * 8 / $p->ifSpeed) * 100, 1) : null,
                 'in_errors_delta' => $p->ifInErrors_delta,
                 'out_errors_delta' => $p->ifOutErrors_delta,
             ])->values()->toArray(),

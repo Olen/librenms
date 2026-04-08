@@ -29,7 +29,10 @@ namespace App\Plugins\AiAssistant\Services;
 use App\Models\Alert;
 use App\Models\Device;
 use App\Models\Eventlog;
+use App\Models\Mempool;
 use App\Models\Port;
+use App\Models\Processor;
+use App\Models\Storage;
 use App\Models\User;
 use Carbon\Carbon;
 use LibreNMS\Enum\AlertState;
@@ -91,6 +94,36 @@ class ContextBuilder
         }
         $recentEvents = $eventQuery->count();
         $lines[] = "Last hour: {$recentEvents} events";
+
+        // High CPU (>80%)
+        $highCpuQuery = Processor::query()->where('processor_usage', '>=', 80);
+        if ($user) {
+            $highCpuQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
+        }
+        $highCpu = $highCpuQuery->count();
+        if ($highCpu > 0) {
+            $lines[] = "High CPU (>80%): {$highCpu} processors";
+        }
+
+        // High memory (>90%)
+        $highMemQuery = Mempool::query()->where('mempool_perc', '>=', 90);
+        if ($user) {
+            $highMemQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
+        }
+        $highMem = $highMemQuery->count();
+        if ($highMem > 0) {
+            $lines[] = "High Memory (>90%): {$highMem} pools";
+        }
+
+        // High storage (>90%)
+        $highStorageQuery = Storage::query()->where('storage_perc', '>=', 90);
+        if ($user) {
+            $highStorageQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
+        }
+        $highStorage = $highStorageQuery->count();
+        if ($highStorage > 0) {
+            $lines[] = "High Storage (>90%): {$highStorage} volumes";
+        }
 
         // Current time
         $now = Carbon::now();
