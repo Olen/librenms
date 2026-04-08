@@ -53,20 +53,32 @@ class PluginProvider extends ServiceProvider
         foreach (glob(base_path('app/Plugins/*/*.php')) as $file) {
             if (preg_match('#^(.*/([^/]+))/([^/.]+)\.php#', $file, $matches)) {
                 $plugin_name = $matches[2]; // containing directory name
+                $fileName = $matches[3]; // file name without extension
                 if ($plugin_name == 'Hooks') {
                     continue;  // don't load the hooks :D
                 }
 
-                $class = $this->className($plugin_name, $matches[3]);
+                // Skip non-class files (e.g. routes.php)
+                if ($fileName === 'routes') {
+                    continue;
+                }
+
+                $class = $this->className($plugin_name, $fileName);
                 $hook_type = $this->hookType($class);
 
                 // publish hooks in class
                 $hook_published = $manager->publishHook($plugin_name, $hook_type, $class);
 
-                // register view namespace
+                // register view namespace and routes
                 if ($hook_published && ! in_array($plugin_name, $plugin_view_location_registered)) {
                     $plugin_view_location_registered[] = $plugin_name;  // don't register twice
                     $this->loadViewsFrom($matches[1], $plugin_name);
+
+                    // Load plugin routes if available
+                    $routesPath = $matches[1] . '/routes.php';
+                    if (file_exists($routesPath)) {
+                        $this->loadRoutesFrom($routesPath);
+                    }
                 }
             }
         }
