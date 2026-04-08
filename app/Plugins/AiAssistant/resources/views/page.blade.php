@@ -48,6 +48,35 @@
     #ai-chat-input {
         resize: none;
     }
+    .ai-msg-bubble code {
+        background: rgba(0,0,0,0.06);
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+    .ai-msg-bubble pre {
+        background: #2d2d2d;
+        color: #f8f8f2;
+        padding: 10px;
+        border-radius: 4px;
+        overflow-x: auto;
+        margin: 6px 0;
+    }
+    .ai-msg-bubble pre code {
+        background: none;
+        padding: 0;
+        color: inherit;
+    }
+    .ai-msg-bubble ul, .ai-msg-bubble ol {
+        margin: 4px 0;
+        padding-left: 20px;
+    }
+    .ai-msg-bubble p {
+        margin: 4px 0;
+    }
+    .ai-msg-bubble strong {
+        font-weight: 600;
+    }
 </style>
 
 <div id="ai-chat-container">
@@ -92,13 +121,90 @@
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
+    /**
+     * Render markdown text to safe DOM nodes.
+     * All text content is set via textContent (never raw HTML injection).
+     * Supports: paragraphs, code blocks, inline code, bold, italic, bullet/numbered lists.
+     */
+    function renderMarkdown(text) {
+        var frag = document.createDocumentFragment();
+        var parts = text.split(/```[\w]*\n?([\s\S]*?)```/g);
+        for (var i = 0; i < parts.length; i++) {
+            if (i % 2 === 1) {
+                var pre = document.createElement('pre');
+                var code = document.createElement('code');
+                code.textContent = parts[i].replace(/^\n|\n$/g, '');
+                pre.appendChild(code);
+                frag.appendChild(pre);
+            } else {
+                var paragraphs = parts[i].split(/\n\n+/);
+                paragraphs.forEach(function(para) {
+                    para = para.trim();
+                    if (!para) return;
+                    var lines = para.split('\n');
+                    var isBullets = lines.every(function(l) { return /^\s*[-*]\s/.test(l) || !l.trim(); });
+                    var isNumbers = lines.every(function(l) { return /^\s*\d+[.)]\s/.test(l) || !l.trim(); });
+                    if (isBullets && lines.some(function(l) { return l.trim(); })) {
+                        var ul = document.createElement('ul');
+                        lines.forEach(function(l) {
+                            l = l.replace(/^\s*[-*]\s/, '').trim();
+                            if (!l) return;
+                            var li = document.createElement('li');
+                            appendInline(li, l);
+                            ul.appendChild(li);
+                        });
+                        frag.appendChild(ul);
+                    } else if (isNumbers && lines.some(function(l) { return l.trim(); })) {
+                        var ol = document.createElement('ol');
+                        lines.forEach(function(l) {
+                            l = l.replace(/^\s*\d+[.)]\s/, '').trim();
+                            if (!l) return;
+                            var li = document.createElement('li');
+                            appendInline(li, l);
+                            ol.appendChild(li);
+                        });
+                        frag.appendChild(ol);
+                    } else {
+                        var p = document.createElement('p');
+                        lines.forEach(function(line, idx) {
+                            if (idx > 0) p.appendChild(document.createElement('br'));
+                            appendInline(p, line);
+                        });
+                        frag.appendChild(p);
+                    }
+                });
+            }
+        }
+        return frag;
+    }
+
+    /** Append inline-formatted text (bold, italic, code) as safe DOM nodes. */
+    function appendInline(parent, text) {
+        var re = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+        var last = 0, m;
+        while ((m = re.exec(text)) !== null) {
+            if (m.index > last) parent.appendChild(document.createTextNode(text.substring(last, m.index)));
+            var tok = m[0];
+            var el;
+            if (tok[0] === '`') { el = document.createElement('code'); el.textContent = tok.slice(1,-1); }
+            else if (tok.startsWith('**')) { el = document.createElement('strong'); el.textContent = tok.slice(2,-2); }
+            else { el = document.createElement('em'); el.textContent = tok.slice(1,-1); }
+            parent.appendChild(el);
+            last = re.lastIndex;
+        }
+        if (last < text.length) parent.appendChild(document.createTextNode(text.substring(last)));
+    }
+
     function addMessage(role, content) {
         var wrapper = document.createElement('div');
         wrapper.className = 'ai-msg ai-msg-' + role;
         var bubble = document.createElement('div');
         bubble.className = 'ai-msg-bubble';
-        // Use textContent for safety — LLM responses are treated as plain text
-        bubble.textContent = content;
+        if (role === 'assistant') {
+            bubble.appendChild(renderMarkdown(content));
+        } else {
+            bubble.textContent = content;
+        }
         wrapper.appendChild(bubble);
         messagesDiv.appendChild(wrapper);
         scrollToBottom();
