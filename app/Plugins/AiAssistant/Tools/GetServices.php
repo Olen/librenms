@@ -61,7 +61,7 @@ class GetServices extends AbstractAiTool
         $query = Service::query()->with('device:device_id,hostname');
 
         if ($user !== null) {
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore-next-line
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 
@@ -79,7 +79,7 @@ class GetServices extends AbstractAiTool
 
         if (! empty($params['search'])) {
             $search = $params['search'];
-            $query->where(function ($q) use ($search) {
+            $query->where(function ($q) use ($search): void {
                 $q->where('service_type', 'like', '%' . $search . '%')
                   ->orWhere('service_name', 'like', '%' . $search . '%')
                   ->orWhere('service_desc', 'like', '%' . $search . '%');
@@ -89,7 +89,7 @@ class GetServices extends AbstractAiTool
         // Include summary of available service types
         $typesQuery = Service::query();
         if ($user !== null) {
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore-next-line
             $typesQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
         $availableTypes = $typesQuery->selectRaw('service_type, count(*) as cnt')

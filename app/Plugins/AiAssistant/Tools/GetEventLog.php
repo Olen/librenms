@@ -63,10 +63,10 @@ class GetEventLog extends AbstractAiTool
         if ($user !== null) {
             // Include events the user can access via device permissions,
             // AND events not associated with any device (e.g. external/system events)
-            $query->where(function ($q) use ($user) {
+            $query->where(function ($q) use ($user): void {
                 $q->whereNull('device_id')
                   ->orWhere('device_id', 0)
-                  // @phpstan-ignore method.notFound
+                  // @phpstan-ignore-next-line
                   ->orWhereHas('device', fn ($dq) => $dq->hasAccess($user));
             });
         }
@@ -76,12 +76,12 @@ class GetEventLog extends AbstractAiTool
             // Match events for this device OR device-less events (type=external)
             // that mention the device hostname in the message text.
             $hostname = \App\Models\Device::where('device_id', $deviceId)->value('hostname');
-            $shortName = $hostname ? explode('.', $hostname)[0] : null;
-            $query->where(function ($q) use ($deviceId, $shortName) {
+            $shortName = $hostname ? explode('.', (string) $hostname)[0] : null;
+            $query->where(function ($q) use ($deviceId, $shortName): void {
                 $q->where('device_id', $deviceId);
                 if ($shortName) {
-                    $q->orWhere(function ($sub) use ($shortName) {
-                        $sub->where(function ($inner) {
+                    $q->orWhere(function ($sub) use ($shortName): void {
+                        $sub->where(function ($inner): void {
                             $inner->whereNull('device_id')->orWhere('device_id', 0);
                         })->where('message', 'like', '%' . $shortName . '%');
                     });
@@ -96,7 +96,7 @@ class GetEventLog extends AbstractAiTool
         if (! empty($params['search'])) {
             // Split search into words and match each independently
             // so "restic lupus" matches "Restic Backup 61lupus"
-            $words = preg_split('/\s+/', trim($params['search']));
+            $words = preg_split('/\s+/', trim((string) $params['search']));
             foreach ($words as $word) {
                 if ($word !== '') {
                     $query->where('message', 'like', '%' . $word . '%');

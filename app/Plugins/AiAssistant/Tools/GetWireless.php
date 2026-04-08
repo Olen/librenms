@@ -39,7 +39,7 @@ class GetWireless extends AbstractAiTool
         $query = WirelessSensor::query()->with('device:device_id,hostname,sysName');
 
         if ($user) {
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore-next-line
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 
@@ -58,7 +58,7 @@ class GetWireless extends AbstractAiTool
         // Always include a summary of available classes so the LLM knows what's in the network
         $classQuery = WirelessSensor::query();
         if ($user) {
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore-next-line
             $classQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
         $availableClasses = $classQuery->selectRaw('sensor_class, count(*) as cnt')

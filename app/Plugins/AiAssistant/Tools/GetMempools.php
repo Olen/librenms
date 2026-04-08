@@ -37,7 +37,7 @@ class GetMempools extends AbstractAiTool
         $query = Mempool::query()->with('device:device_id,hostname,sysName');
 
         if ($user) {
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore-next-line
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 

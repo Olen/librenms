@@ -36,7 +36,7 @@ class GetProcessors extends AbstractAiTool
         $query = Processor::query()->with('device:device_id,hostname,sysName');
 
         if ($user) {
-            // @phpstan-ignore method.notFound
+            // @phpstan-ignore-next-line
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 

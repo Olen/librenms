@@ -55,7 +55,6 @@ class GetDevices extends AbstractAiTool
         $query = Device::query()->with('location:id,location');
 
         if ($user !== null) {
-            // @phpstan-ignore method.notFound
             $query->hasAccess($user);
         }
 

@@ -51,7 +51,6 @@ class GetPorts extends AbstractAiTool
         $query = Port::query()->where('deleted', 0)->with('device:device_id,hostname');
 
         if ($user !== null) {
-            // @phpstan-ignore method.notFound
             $query->hasAccess($user);
         }
 
