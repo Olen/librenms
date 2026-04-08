@@ -40,7 +40,8 @@ class ConversationManager
 
     public function __construct(
         private LlmService $llmService,
-    ) {}
+    ) {
+    }
 
     /**
      * Set the session timeout in minutes.

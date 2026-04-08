@@ -38,7 +38,8 @@ class CostTracker
         private float $maxDailyCost,
         private float $maxMonthlyCost,
         private float $maxQueryCost,
-    ) {}
+    ) {
+    }
 
     /**
      * Calculate the cost of an LLM response.

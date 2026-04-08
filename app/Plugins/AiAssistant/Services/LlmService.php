@@ -226,7 +226,7 @@ class LlmService
      */
     private function buildSystemPrompt(string $networkSnapshot, ?User $user): string
     {
-        $prompt = "You are the LibreNMS AI Assistant, a helpful network monitoring expert. ";
+        $prompt = 'You are the LibreNMS AI Assistant, a helpful network monitoring expert. ';
         $prompt .= "You help users understand their network status, investigate issues, and manage their monitoring system.\n\n";
         $prompt .= "Current Network Context:\n{$networkSnapshot}\n\n";
         $prompt .= "Guidelines:\n";

@@ -56,7 +56,7 @@ class AiMessage extends Model
     // ---- Define Relationships ----
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Plugins\AiAssistant\Models\AiSession, $this>
+     * @return BelongsTo<AiSession, $this>
      */
     public function session(): BelongsTo
     {

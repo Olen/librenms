@@ -76,7 +76,7 @@ class GetAlertHistory extends AbstractAiTool
                 'hostname' => $log->device?->hostname,
                 'rule' => $log->rule?->name,
                 'state' => $stateMap[$log->getRawOriginal('state')] ?? 'unknown',
-                'time_logged' => $log->time_logged?->toIso8601String(),
+                'time_logged' => $log->time_logged->toIso8601String(),
             ])->values()->toArray(),
         ];
     }

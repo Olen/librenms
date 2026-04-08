@@ -88,7 +88,7 @@ class OpenAiCompatibleProvider implements LlmProviderInterface
         };
 
         return new LlmResponse(
-            content: $content ?? '',
+            content: $content,
             toolCalls: $toolCalls,
             inputTokens: $inputTokens,
             outputTokens: $outputTokens,

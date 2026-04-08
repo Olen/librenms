@@ -34,7 +34,8 @@ class LlmResponse
         public readonly int $inputTokens,
         public readonly int $outputTokens,
         public readonly string $stopReason,
-    ) {}
+    ) {
+    }
 
     public function hasToolCalls(): bool
     {

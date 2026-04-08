@@ -55,7 +55,7 @@ class AiSession extends Model
     // ---- Define Relationships ----
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this>
+     * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
@@ -63,7 +63,7 @@ class AiSession extends Model
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Plugins\AiAssistant\Models\AiMessage, $this>
+     * @return HasMany<AiMessage, $this>
      */
     public function messages(): HasMany
     {
