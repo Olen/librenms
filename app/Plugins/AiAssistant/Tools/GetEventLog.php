@@ -14,7 +14,7 @@ class GetEventLog extends AbstractAiTool
 
     public function description(): string
     {
-        return 'Returns LibreNMS event log entries (interface changes, state changes, poller events, etc.) for a given time window.';
+        return 'Returns LibreNMS event log entries (interface changes, state changes, poller events, external messages from scripts, etc.). Supports text search on the message field. Event types include: sensor, interface, state, system, external (messages from external scripts like IRC bot triggers). Events with type "external" may not be associated with a specific device.';
     }
 
     public function parameters(): array
@@ -33,7 +33,11 @@ class GetEventLog extends AbstractAiTool
                 ],
                 'type' => [
                     'type' => 'string',
-                    'description' => 'Filter by event type (e.g. sensor, interface, state, system).',
+                    'description' => 'Filter by event type (e.g. sensor, interface, state, system, external).',
+                ],
+                'search' => [
+                    'type' => 'string',
+                    'description' => 'Search for text in the event message (substring match, case-insensitive).',
                 ],
                 'limit' => [
                     'type' => 'integer',
@@ -56,7 +60,13 @@ class GetEventLog extends AbstractAiTool
             ->with('device:device_id,hostname');
 
         if ($user !== null) {
-            $query->whereHas('device', fn ($q) => $q->hasAccess($user));
+            // Include events the user can access via device permissions,
+            // AND events not associated with any device (e.g. external/system events)
+            $query->where(function ($q) use ($user) {
+                $q->whereNull('device_id')
+                  ->orWhere('device_id', 0)
+                  ->orWhereHas('device', fn ($dq) => $dq->hasAccess($user));
+            });
         }
 
         if (! empty($params['device_id'])) {
@@ -65,6 +75,10 @@ class GetEventLog extends AbstractAiTool
 
         if (! empty($params['type'])) {
             $query->where('type', $params['type']);
+        }
+
+        if (! empty($params['search'])) {
+            $query->where('message', 'like', '%' . $params['search'] . '%');
         }
 
         $limit = min((int) ($params['limit'] ?? 100), 500);
