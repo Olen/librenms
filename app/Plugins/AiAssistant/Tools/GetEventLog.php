@@ -69,11 +69,22 @@ class GetEventLog extends AbstractAiTool
             });
         }
 
-        // Skip device_id filter for external events — they have no device association.
-        // Use the 'search' parameter to find specific external events by keyword instead.
-        $isExternal = ! empty($params['type']) && $params['type'] === 'external';
-        if (! empty($params['device_id']) && ! $isExternal) {
-            $query->where('device_id', (int) $params['device_id']);
+        if (! empty($params['device_id'])) {
+            $deviceId = (int) $params['device_id'];
+            // Match events for this device OR device-less events (type=external)
+            // that mention the device hostname in the message text.
+            $hostname = \App\Models\Device::where('device_id', $deviceId)->value('hostname');
+            $shortName = $hostname ? explode('.', $hostname)[0] : null;
+            $query->where(function ($q) use ($deviceId, $shortName) {
+                $q->where('device_id', $deviceId);
+                if ($shortName) {
+                    $q->orWhere(function ($sub) use ($shortName) {
+                        $sub->where(function ($inner) {
+                            $inner->whereNull('device_id')->orWhere('device_id', 0);
+                        })->where('message', 'like', '%' . $shortName . '%');
+                    });
+                }
+            });
         }
 
         if (! empty($params['type'])) {
