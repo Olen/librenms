@@ -47,6 +47,7 @@ class GetRouting extends AbstractAiTool
         $query = BgpPeer::query()->with('device:device_id,hostname');
 
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 

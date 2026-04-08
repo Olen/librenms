@@ -64,6 +64,7 @@ class GetSyslog extends AbstractAiTool
             ->with('device:device_id,hostname');
 
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 

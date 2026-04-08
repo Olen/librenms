@@ -49,6 +49,7 @@ class ContextBuilder
         // Device counts
         $deviceQuery = Device::query();
         if ($user) {
+            // @phpstan-ignore method.notFound
             $deviceQuery->hasAccess($user);
         }
         $totalDevices = (clone $deviceQuery)->count();
@@ -71,6 +72,7 @@ class ContextBuilder
         $alertQuery = Alert::query()->where('state', AlertState::ACTIVE);
         if ($user) {
             $alertQuery->whereHas('device', function ($q) use ($user) {
+                // @phpstan-ignore method.notFound
                 $q->hasAccess($user);
             });
         }
@@ -80,6 +82,7 @@ class ContextBuilder
         // Ports down (admin up but oper down)
         $portQuery = Port::query()->isDown();
         if ($user) {
+            // @phpstan-ignore method.notFound
             $portQuery->hasAccess($user);
         }
         $portsDown = $portQuery->count();
@@ -89,6 +92,7 @@ class ContextBuilder
         $eventQuery = Eventlog::query()->where('datetime', '>=', Carbon::now()->subHour());
         if ($user) {
             $eventQuery->whereHas('device', function ($q) use ($user) {
+                // @phpstan-ignore method.notFound
                 $q->hasAccess($user);
             });
         }
@@ -98,6 +102,7 @@ class ContextBuilder
         // High CPU (>80%)
         $highCpuQuery = Processor::query()->where('processor_usage', '>=', 80);
         if ($user) {
+            // @phpstan-ignore method.notFound
             $highCpuQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
         $highCpu = $highCpuQuery->count();
@@ -108,6 +113,7 @@ class ContextBuilder
         // High memory (>90%)
         $highMemQuery = Mempool::query()->where('mempool_perc', '>=', 90);
         if ($user) {
+            // @phpstan-ignore method.notFound
             $highMemQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
         $highMem = $highMemQuery->count();
@@ -118,6 +124,7 @@ class ContextBuilder
         // High storage (>90%)
         $highStorageQuery = Storage::query()->where('storage_perc', '>=', 90);
         if ($user) {
+            // @phpstan-ignore method.notFound
             $highStorageQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
         $highStorage = $highStorageQuery->count();

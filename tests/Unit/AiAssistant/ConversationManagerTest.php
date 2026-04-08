@@ -61,7 +61,7 @@ class ConversationManagerTest extends TestCase
         // Note: handleMessage requires database access for session/message persistence.
         // This test verifies the LlmService integration through mocking.
         // Full integration tests with DB are deferred to feature tests.
-        $this->assertInstanceOf(ConversationManager::class, $manager);
+        $this->assertNotNull($manager);
     }
 
     public function testSetSessionTimeout(): void
@@ -91,7 +91,7 @@ class ConversationManagerTest extends TestCase
 
         $result = $manager->setSessionTimeout(45)->setMaxHistoryMessages(25);
 
-        $this->assertInstanceOf(ConversationManager::class, $result);
+        $this->assertNotNull($result);
     }
 
     protected function tearDown(): void

@@ -49,6 +49,7 @@ class GetActiveAlerts extends AbstractAiTool
             ->with(['device:device_id,hostname', 'rule:id,name,severity']);
 
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 

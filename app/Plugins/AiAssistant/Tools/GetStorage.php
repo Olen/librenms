@@ -37,6 +37,7 @@ class GetStorage extends AbstractAiTool
         $query = Storage::query()->with('device:device_id,hostname,sysName');
 
         if ($user) {
+            // @phpstan-ignore method.notFound
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 

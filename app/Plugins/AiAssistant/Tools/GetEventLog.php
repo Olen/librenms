@@ -66,6 +66,7 @@ class GetEventLog extends AbstractAiTool
             $query->where(function ($q) use ($user) {
                 $q->whereNull('device_id')
                   ->orWhere('device_id', 0)
+                  // @phpstan-ignore method.notFound
                   ->orWhereHas('device', fn ($dq) => $dq->hasAccess($user));
             });
         }

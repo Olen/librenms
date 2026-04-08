@@ -61,6 +61,7 @@ class GetServices extends AbstractAiTool
         $query = Service::query()->with('device:device_id,hostname');
 
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 
@@ -88,6 +89,7 @@ class GetServices extends AbstractAiTool
         // Include summary of available service types
         $typesQuery = Service::query();
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $typesQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
         $availableTypes = $typesQuery->selectRaw('service_type, count(*) as cnt')

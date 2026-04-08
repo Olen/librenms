@@ -52,6 +52,7 @@ class GetAlertHistory extends AbstractAiTool
             ->with(['device:device_id,hostname', 'rule:id,name']);
 
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 

@@ -40,6 +40,7 @@ class GetDeviceDetail extends AbstractAiTool
         $query = Device::query()->with(['sensors', 'alerts' => fn ($q) => $q->where('state', '>=', 1)->with('rule'), 'location']);
 
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $query->hasAccess($user);
         }
 

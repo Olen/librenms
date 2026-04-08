@@ -34,6 +34,7 @@ class GetNetworkSummary extends AbstractAiTool
     {
         $deviceQuery = Device::query();
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $deviceQuery->hasAccess($user);
         }
 
@@ -47,12 +48,14 @@ class GetNetworkSummary extends AbstractAiTool
 
         $alertQuery = Alert::query()->where('state', '>=', 1);
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $alertQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
         $activeAlerts = $alertQuery->count();
 
         $portQuery = Port::query()->where('deleted', 0);
         if ($user !== null) {
+            // @phpstan-ignore method.notFound
             $portQuery->hasAccess($user);
         }
         $totalPorts = (clone $portQuery)->count();
@@ -73,6 +76,7 @@ class GetNetworkSummary extends AbstractAiTool
         if (Config::get('show_services')) {
             $serviceQuery = Service::query();
             if ($user !== null) {
+                // @phpstan-ignore method.notFound
                 $serviceQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
             }
             $result['services_ok'] = (clone $serviceQuery)->where('service_status', 0)->count();
