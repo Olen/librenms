@@ -189,9 +189,10 @@ class LlmService
                     throw $e;
                 }
 
-                // Exponential backoff: 1s, 2s, 4s
+                // Exponential backoff: 5s, 15s, 30s (longer for rate limits)
                 if ($attempt < self::MAX_RETRIES - 1) {
-                    usleep((int) (2 ** $attempt * 1000000));
+                    $delay = $code === 429 ? (5 + $attempt * 10) : (2 ** $attempt);
+                    sleep($delay);
                 }
             }
         }

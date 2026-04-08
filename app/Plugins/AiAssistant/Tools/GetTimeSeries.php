@@ -53,7 +53,7 @@ class GetTimeSeries extends AbstractAiTool
                 ],
                 'data_points' => [
                     'type' => 'integer',
-                    'description' => 'Target number of data points to return (data is sampled). Default: 48. Max: 200.',
+                    'description' => 'Target number of data points to return (data is sampled). Default: 24. Max: 48. Keep low to avoid token limits.',
                 ],
             ],
             'required' => ['action', 'hostname'],
@@ -150,7 +150,7 @@ class GetTimeSeries extends AbstractAiTool
         $metric = $params['metric'] ?? '';
         $metricName = $params['metric_name'] ?? '';
         $hours = min((int) ($params['hours'] ?? 168), 8760);
-        $targetPoints = min((int) ($params['data_points'] ?? 48), 200);
+        $targetPoints = min((int) ($params['data_points'] ?? 24), 48);
 
         // Resolve RRD file path
         $rrdFile = $this->resolveRrdFile($device, $rrdDir, $metric, $metricName);
@@ -181,7 +181,7 @@ class GetTimeSeries extends AbstractAiTool
 
         $output = $process->getOutput();
 
-        return $this->parseRrdOutput($output, $device->hostname, $metric, $metricName, $hours);
+        return $this->parseRrdOutput($output, $device->hostname, $metric, $metricName, $hours, $targetPoints);
     }
 
     private function resolveRrdFile(Device $device, string $rrdDir, string $metric, string $metricName): ?string
@@ -252,7 +252,7 @@ class GetTimeSeries extends AbstractAiTool
         }
     }
 
-    private function parseRrdOutput(string $output, string $hostname, string $metric, string $metricName, int $hours): array
+    private function parseRrdOutput(string $output, string $hostname, string $metric, string $metricName, int $hours, int $targetPoints = 24): array
     {
         $lines = explode("\n", trim($output));
         if (empty($lines)) {
@@ -319,12 +319,33 @@ class GetTimeSeries extends AbstractAiTool
             }
         }
 
+        // Downsample data points if too many — keep only evenly spaced samples
+        $maxPoints = min($targetPoints ?? 24, 48);
+        if (count($dataPoints) > $maxPoints) {
+            $step = count($dataPoints) / $maxPoints;
+            $sampled = [];
+            for ($s = 0; $s < $maxPoints; $s++) {
+                $sampled[] = $dataPoints[(int) ($s * $step)];
+            }
+            $dataPoints = $sampled;
+        }
+
+        // Round large values for readability and token savings
+        foreach ($dataPoints as &$dp) {
+            foreach ($dp['values'] as $k => &$v) {
+                if ($v !== null && abs($v) > 1000000) {
+                    $v = round($v, -3); // Round to nearest thousand
+                }
+            }
+        }
+        unset($dp, $v);
+
         return [
             'device' => $hostname,
             'metric' => $metric,
             'metric_name' => $metricName,
             'period_hours' => $hours,
-            'data_points' => $validPoints,
+            'data_points' => count($dataPoints),
             'datasources' => $header,
             'summary' => $summary,
             'data' => $dataPoints,
