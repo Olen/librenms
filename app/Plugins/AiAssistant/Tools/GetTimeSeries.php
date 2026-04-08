@@ -320,7 +320,7 @@ class GetTimeSeries extends AbstractAiTool
         }
 
         // Downsample data points if too many — keep only evenly spaced samples
-        $maxPoints = min($targetPoints ?? 24, 48);
+        $maxPoints = min($targetPoints, 48);
         if (count($dataPoints) > $maxPoints) {
             $step = count($dataPoints) / $maxPoints;
             $sampled = [];
@@ -332,7 +332,7 @@ class GetTimeSeries extends AbstractAiTool
 
         // Round large values for readability and token savings
         foreach ($dataPoints as &$dp) {
-            foreach ($dp['values'] as $k => &$v) {
+            foreach ($dp['values'] as &$v) {
                 if ($v !== null && abs($v) > 1000000) {
                     $v = round($v, -3); // Round to nearest thousand
                 }
