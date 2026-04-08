@@ -24,7 +24,7 @@ class GetEventLog extends AbstractAiTool
             'properties' => [
                 'device_id' => [
                     'type' => 'integer',
-                    'description' => 'Filter events for a specific device ID.',
+                    'description' => 'Filter events for a specific device ID. NOTE: ignored when type="external" because external events have no device. Use "search" instead to find external events by keyword.',
                 ],
                 'hours' => [
                     'type' => 'integer',
@@ -69,7 +69,10 @@ class GetEventLog extends AbstractAiTool
             });
         }
 
-        if (! empty($params['device_id'])) {
+        // Skip device_id filter for external events — they have no device association.
+        // Use the 'search' parameter to find specific external events by keyword instead.
+        $isExternal = ! empty($params['type']) && $params['type'] === 'external';
+        if (! empty($params['device_id']) && ! $isExternal) {
             $query->where('device_id', (int) $params['device_id']);
         }
 
