@@ -131,6 +131,75 @@ class PluginManager implements PluginManagerInterface
     }
 
     /**
+     * Dispatch an event to all plugins implementing EventListenerHook.
+     * Non-blocking: each handler is wrapped in try/catch.
+     * Errors are logged but do not propagate or disable the plugin.
+     */
+    public function dispatchEvent(string $eventType, array $eventData): void
+    {
+        $hookType = \LibreNMS\Interfaces\Plugins\Hooks\EventListenerHook::class;
+
+        foreach ($this->hooksFor($hookType, [], null) as $hook) {
+            try {
+                $hook['instance']->handle(
+                    $eventType,
+                    $eventData,
+                    $hook['plugin_name'],
+                    $this->getSettings($hook['plugin_name'])
+                );
+            } catch (\Throwable $e) {
+                Log::error("Plugin {$hook['plugin_name']} EventListenerHook failed: " . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Collect alerts from all plugins implementing AlertInjectionHook.
+     * Returns merged array of alert data from all plugins.
+     */
+    public function collectPluginAlerts(): array
+    {
+        $hookType = \LibreNMS\Interfaces\Plugins\Hooks\AlertInjectionHook::class;
+        $alerts = [];
+
+        foreach ($this->hooksFor($hookType, [], null) as $hook) {
+            try {
+                $pluginAlerts = $hook['instance']->handle(
+                    $hook['plugin_name'],
+                    $this->getSettings($hook['plugin_name'])
+                );
+                if (is_array($pluginAlerts)) {
+                    $alerts = array_merge($alerts, $pluginAlerts);
+                }
+            } catch (\Throwable $e) {
+                Log::error("Plugin {$hook['plugin_name']} AlertInjectionHook failed: " . $e->getMessage());
+            }
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Register scheduled tasks from all plugins implementing ScheduledTaskHook.
+     */
+    public function registerPluginSchedules(\Illuminate\Console\Scheduling\Schedule $schedule): void
+    {
+        $hookType = \LibreNMS\Interfaces\Plugins\Hooks\ScheduledTaskHook::class;
+
+        foreach ($this->hooksFor($hookType, [], null) as $hook) {
+            try {
+                $hook['instance']->handle(
+                    $schedule,
+                    $hook['plugin_name'],
+                    $this->getSettings($hook['plugin_name'])
+                );
+            } catch (\Throwable $e) {
+                Log::error("Plugin {$hook['plugin_name']} ScheduledTaskHook failed: " . $e->getMessage());
+            }
+        }
+    }
+
+    /**
      * Get the settings stored in the database for a plugin.
      * One plugin shares the settings across all hooks
      *
