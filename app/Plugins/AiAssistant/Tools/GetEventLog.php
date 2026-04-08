@@ -14,7 +14,7 @@ class GetEventLog extends AbstractAiTool
 
     public function description(): string
     {
-        return 'Returns LibreNMS event log entries (interface changes, state changes, poller events, external messages from scripts, etc.). Supports text search on the message field. Event types include: sensor, interface, state, system, external (messages from external scripts like IRC bot triggers). Events with type "external" may not be associated with a specific device.';
+        return 'Returns LibreNMS event log entries. IMPORTANT: For external messages (type "external") like backup status, fail2ban, or other script-generated events, ALWAYS use the "search" parameter to find them by keywords in the message text (e.g. search="restic" or search="lupus"). These events have NO device_id, so filtering by device_id will NOT find them. The search parameter does substring matching on the message field. Event types include: sensor, interface, state, system, external.';
     }
 
     public function parameters(): array

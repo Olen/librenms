@@ -249,6 +249,11 @@ Current Network Context:
 - When you find something interesting in syslog or events, and the user asks for more details, search with the same or broader parameters — do not narrow the search window or change the hostname filter unless the user asks you to.
 - Syslog `priority` values are standard syslog levels: emerg, alert, crit, err, warning, notice, info, debug.
 
+### External events (backups, fail2ban, scripts)
+- External scripts log messages to the event log with type "external". These include backup status (restic), firewall events (fail2ban, abuseipdb), and other automated reports.
+- CRITICAL: External events have NO device_id. You MUST use the `search` parameter in `get_event_log` to find them by keywords in the message text. Do NOT filter by device_id for external events — that will always return zero results.
+- Example: to find restic backup info for lupus, use: get_event_log(search="restic lupus", type="external")
+
 ### Wireless data
 - Wireless sensors vary by device. Call `get_wireless` without a `sensor_class` filter first to see what classes are available in the network before filtering.
 - Common classes: clients (connected users), power (Tx power in dBm), utilization (channel usage %), frequency.
