@@ -55,7 +55,7 @@ Layered service architecture with clean interfaces between layers:
 | Pattern persistence | Yes, with human review lifecycle | Learned patterns make the system smarter over time. Human approval required for alert suppression. |
 | Permission model | Defense-in-depth RBAC | Data filtered at tool level before reaching LLM. No path for restricted data to leak. |
 | Deployment model | Plugin with new core hooks | Easier upstream acceptance. Hooks are generic infrastructure improvements. AI functionality is optional. |
-| All three use cases in v1 | Yes | Proactive monitoring is the killer feature — not a later phase. |
+| All three use cases in v1 | Yes, monitoring opt-in | Proactive monitoring is the killer feature — not a later phase. However, it must be explicitly enabled by the admin in configuration (default: disabled) to avoid alert fatigue before the system has learned the network's baseline patterns. |
 
 ---
 
@@ -366,7 +366,7 @@ The LLM returns JSON with:
 
 ### Configuration
 
-- `ai.monitor_with_poller` — enable/disable (default: true)
+- `ai.monitor_with_poller` — enable/disable (default: **false** — must be explicitly enabled)
 - `ai.monitor_force_interval` — minutes between forced flushes (default: 15)
 - `ai.monitor_window` — sliding window size in minutes (default: 30)
 
@@ -592,8 +592,8 @@ All configuration managed via the `SettingsHook`, grouped into sections:
 - Action when budget exceeded: disable all / chat only / monitoring only
 
 ### Monitoring
-- Enable/disable proactive monitoring
-- Tie to poller interval (toggle, default on)
+- Enable/disable proactive monitoring (default: **disabled** — must be explicitly enabled)
+- Tie to poller interval (toggle, default on when monitoring is enabled)
 - Forced flush interval in minutes (default 15)
 - Sliding window size in minutes (default 30)
 - Enable/disable alert injection
