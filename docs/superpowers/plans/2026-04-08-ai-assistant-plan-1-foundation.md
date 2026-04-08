@@ -41,6 +41,7 @@
 | Create | `app/Plugins/AiAssistant/Providers/LlmResponse.php` | Response value object |
 | Create | `app/Plugins/AiAssistant/Providers/OpenAiCompatibleProvider.php` | OpenAI-compatible implementation |
 | Create | `app/Plugins/AiAssistant/Tools/AiToolInterface.php` | Tool contract |
+| Create | `app/Plugins/AiAssistant/Tools/AbstractAiTool.php` | Base class with shared toFunctionDefinition() |
 | Create | `app/Plugins/AiAssistant/Tools/GetNetworkSummary.php` | Network overview tool |
 | Create | `app/Plugins/AiAssistant/Tools/GetDevices.php` | Device listing tool |
 | Create | `app/Plugins/AiAssistant/Tools/GetDeviceDetail.php` | Single device deep-dive tool |
@@ -63,6 +64,7 @@
 | Create | `app/Plugins/AiAssistant/Models/AiSession.php` | Session model |
 | Create | `app/Plugins/AiAssistant/Models/AiMessage.php` | Message model |
 | Create | `app/Plugins/AiAssistant/Models/AiCostLog.php` | Cost log model |
+| Create | `app/Plugins/AiAssistant/Services/AiServiceFactory.php` | Factory for building the service stack from settings |
 | Create | `app/Plugins/AiAssistant/Http/AiChatController.php` | Chat API endpoint |
 | Create | `app/Plugins/AiAssistant/Settings.php` | SettingsHook implementation |
 | Create | `app/Plugins/AiAssistant/routes.php` | Plugin routes |
@@ -271,12 +273,20 @@ git commit -m "feat(plugins): add abstract base classes for new hook types"
 
 Add dispatch methods for the new hooks to the PluginManager. The EventListenerHook needs special handling: non-blocking with timeout and try/catch per the design spec.
 
+**This is the highest-risk task in the plan.** The code below assumes specific internal APIs (`hooksFor()`, `getSettings()`). These must be verified against the actual PluginManager before implementation.
+
 **Files:**
 - Modify: `app/Plugins/PluginManager.php`
 
-- [ ] **Step 1: Read the current PluginManager**
+- [ ] **Step 1: Read the current PluginManager carefully**
 
-Read `app/Plugins/PluginManager.php` to understand the current structure and find where to add the new dispatch methods.
+Read `app/Plugins/PluginManager.php` in full. Verify:
+1. The `hooksFor()` method exists and its signature (it takes `$hookType`, `$args`, `$onlyPlugin` — returns a Collection of `['plugin_name' => string, 'instance' => object]`)
+2. The `getSettings()` method exists and returns an array
+3. The `publishHook()` method — how it registers hooks and discovers implementing classes
+4. How existing hooks are dispatched in `call()` — follow the same error handling pattern
+
+**If the internal API differs from assumptions, adapt all dispatch methods below accordingly.** The key contract is: iterate over registered hooks, call `handle()`, catch exceptions.
 
 - [ ] **Step 2: Add dispatchEvent method to PluginManager**
 
@@ -874,7 +884,7 @@ Create the tool interface and implement the first tool. This establishes the pat
 - Create: `app/Plugins/AiAssistant/Tools/GetNetworkSummary.php`
 - Create: `tests/Unit/AiAssistant/ToolsTest.php`
 
-- [ ] **Step 1: Create AiToolInterface**
+- [ ] **Step 1: Create AiToolInterface and AbstractAiTool base class**
 
 ```php
 <?php
@@ -912,6 +922,32 @@ interface AiToolInterface
      */
     public function toFunctionDefinition(): array;
 }
+```
+
+Create `app/Plugins/AiAssistant/Tools/AbstractAiTool.php` — base class that provides the shared `toFunctionDefinition()` so tools don't duplicate it:
+
+```php
+<?php
+
+namespace App\Plugins\AiAssistant\Tools;
+
+abstract class AbstractAiTool implements AiToolInterface
+{
+    public function toFunctionDefinition(): array
+    {
+        return [
+            'type' => 'function',
+            'function' => [
+                'name' => $this->name(),
+                'description' => $this->description(),
+                'parameters' => $this->parameters(),
+            ],
+        ];
+    }
+}
+```
+
+All tools extend `AbstractAiTool` instead of implementing `AiToolInterface` directly.
 ```
 
 - [ ] **Step 2: Write test for GetNetworkSummary**
@@ -985,7 +1021,7 @@ use App\Models\Port;
 use App\Models\Service;
 use App\Models\User;
 
-class GetNetworkSummary implements AiToolInterface
+class GetNetworkSummary extends AbstractAiTool
 {
     public function name(): string
     {
@@ -1063,18 +1099,6 @@ class GetNetworkSummary implements AiToolInterface
 
         return $result;
     }
-
-    public function toFunctionDefinition(): array
-    {
-        return [
-            'type' => 'function',
-            'function' => [
-                'name' => $this->name(),
-                'description' => $this->description(),
-                'parameters' => $this->parameters(),
-            ],
-        ];
-    }
 }
 ```
 
@@ -1087,9 +1111,10 @@ Expected: 3 tests pass.
 
 ```bash
 git add app/Plugins/AiAssistant/Tools/AiToolInterface.php \
+        app/Plugins/AiAssistant/Tools/AbstractAiTool.php \
         app/Plugins/AiAssistant/Tools/GetNetworkSummary.php \
         tests/Unit/AiAssistant/ToolsTest.php
-git commit -m "feat(ai): add AiToolInterface and GetNetworkSummary tool"
+git commit -m "feat(ai): add AiToolInterface, AbstractAiTool, and GetNetworkSummary tool"
 ```
 
 ---
@@ -1111,10 +1136,10 @@ Implement the remaining 11 tools. Each follows the same pattern as GetNetworkSum
 - Create: `app/Plugins/AiAssistant/Tools/GetServices.php`
 - Create: `app/Plugins/AiAssistant/Tools/GetRouting.php`
 
-Since these all follow an identical pattern, this task provides the implementation for each tool. Each tool:
+Since these all follow an identical pattern, this task provides the implementation for each tool. Each tool extends `AbstractAiTool` and:
 1. Defines `name()`, `description()`, `parameters()` (with JSON Schema for inputs)
-2. Implements `execute()` with `hasAccess($user)` filtering
-3. Implements `toFunctionDefinition()` identically to GetNetworkSummary
+2. Implements `execute()` with `hasAccess($user)` filtering (via `whereHas('device', ...)` for models that don't have their own `hasAccess` scope)
+3. Inherits `toFunctionDefinition()` from `AbstractAiTool`
 
 - [ ] **Step 1: Create GetDevices**
 
@@ -1126,7 +1151,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\Device;
 use App\Models\User;
 
-class GetDevices implements AiToolInterface
+class GetDevices extends AbstractAiTool
 {
     public function name(): string { return 'get_devices'; }
 
@@ -1200,18 +1225,6 @@ class GetDevices implements AiToolInterface
             ])->toArray(),
         ];
     }
-
-    public function toFunctionDefinition(): array
-    {
-        return [
-            'type' => 'function',
-            'function' => [
-                'name' => $this->name(),
-                'description' => $this->description(),
-                'parameters' => $this->parameters(),
-            ],
-        ];
-    }
 }
 ```
 
@@ -1225,7 +1238,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\Device;
 use App\Models\User;
 
-class GetDeviceDetail implements AiToolInterface
+class GetDeviceDetail extends AbstractAiTool
 {
     public function name(): string { return 'get_device_detail'; }
 
@@ -1302,18 +1315,6 @@ class GetDeviceDetail implements AiToolInterface
             ])->toArray(),
         ];
     }
-
-    public function toFunctionDefinition(): array
-    {
-        return [
-            'type' => 'function',
-            'function' => [
-                'name' => $this->name(),
-                'description' => $this->description(),
-                'parameters' => $this->parameters(),
-            ],
-        ];
-    }
 }
 ```
 
@@ -1327,7 +1328,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\Alert;
 use App\Models\User;
 
-class GetActiveAlerts implements AiToolInterface
+class GetActiveAlerts extends AbstractAiTool
 {
     public function name(): string { return 'get_active_alerts'; }
 
@@ -1388,10 +1389,6 @@ class GetActiveAlerts implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -1405,7 +1402,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\AlertLog;
 use App\Models\User;
 
-class GetAlertHistory implements AiToolInterface
+class GetAlertHistory extends AbstractAiTool
 {
     public function name(): string { return 'get_alert_history'; }
 
@@ -1466,10 +1463,6 @@ class GetAlertHistory implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -1483,7 +1476,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\Port;
 use App\Models\User;
 
-class GetPorts implements AiToolInterface
+class GetPorts extends AbstractAiTool
 {
     public function name(): string { return 'get_ports'; }
 
@@ -1514,7 +1507,7 @@ class GetPorts implements AiToolInterface
             ->with('device:device_id,hostname,sysName');
 
         if ($user) {
-            $query->hasAccess($user);
+            $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 
         if (isset($params['device_id'])) {
@@ -1555,10 +1548,6 @@ class GetPorts implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -1572,7 +1561,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\Sensor;
 use App\Models\User;
 
-class GetSensors implements AiToolInterface
+class GetSensors extends AbstractAiTool
 {
     public function name(): string { return 'get_sensors'; }
 
@@ -1634,10 +1623,6 @@ class GetSensors implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -1651,7 +1636,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\Eventlog;
 use App\Models\User;
 
-class GetEventLog implements AiToolInterface
+class GetEventLog extends AbstractAiTool
 {
     public function name(): string { return 'get_event_log'; }
 
@@ -1683,7 +1668,7 @@ class GetEventLog implements AiToolInterface
             ->orderBy('datetime', 'desc');
 
         if ($user) {
-            $query->hasAccess($user);
+            $query->whereHas('device', fn ($q) => $q->hasAccess($user));
         }
 
         if (isset($params['device_id'])) {
@@ -1710,10 +1695,6 @@ class GetEventLog implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -1727,7 +1708,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\Syslog;
 use App\Models\User;
 
-class GetSyslog implements AiToolInterface
+class GetSyslog extends AbstractAiTool
 {
     public function name(): string { return 'get_syslog'; }
 
@@ -1797,10 +1778,6 @@ class GetSyslog implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -1814,7 +1791,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\DeviceOutage;
 use App\Models\User;
 
-class GetDeviceOutages implements AiToolInterface
+class GetDeviceOutages extends AbstractAiTool
 {
     public function name(): string { return 'get_device_outages'; }
 
@@ -1873,10 +1850,6 @@ class GetDeviceOutages implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -1890,7 +1863,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\Service;
 use App\Models\User;
 
-class GetServices implements AiToolInterface
+class GetServices extends AbstractAiTool
 {
     public function name(): string { return 'get_services'; }
 
@@ -1956,10 +1929,6 @@ class GetServices implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -1973,7 +1942,7 @@ namespace App\Plugins\AiAssistant\Tools;
 use App\Models\BgpPeer;
 use App\Models\User;
 
-class GetRouting implements AiToolInterface
+class GetRouting extends AbstractAiTool
 {
     public function name(): string { return 'get_routing'; }
 
@@ -2031,10 +2000,6 @@ class GetRouting implements AiToolInterface
         ];
     }
 
-    public function toFunctionDefinition(): array
-    {
-        return ['type' => 'function', 'function' => ['name' => $this->name(), 'description' => $this->description(), 'parameters' => $this->parameters()]];
-    }
 }
 ```
 
@@ -2068,6 +2033,25 @@ Create the database tables for sessions, messages, and cost tracking.
 - Create: `app/Plugins/AiAssistant/Models/AiSession.php`
 - Create: `app/Plugins/AiAssistant/Models/AiMessage.php`
 - Create: `app/Plugins/AiAssistant/Models/AiCostLog.php`
+
+- [ ] **Step 0: Investigate plugin migration and route loading**
+
+Before creating migrations, check how LibreNMS handles migrations for plugins. Read:
+1. `app/Providers/PluginProvider.php` — does it load migrations from plugin directories?
+2. `database/migrations/` — are there patterns for plugin-specific migrations?
+3. Check if `loadMigrationsFrom()` is called anywhere for plugins
+
+If the PluginProvider doesn't auto-load plugin migrations, add migration loading to the plugin's boot process. The most likely approach is:
+
+Option A: Place migrations in the standard `database/migrations/` directory with a plugin prefix (e.g., `2026_04_08_000001_ai_assistant_create_sessions_table.php`).
+
+Option B: Create an `AiAssistantServiceProvider` that calls `$this->loadMigrationsFrom(__DIR__.'/Migrations')` in its `boot()` method, and register it in `config/app.php` or via plugin discovery.
+
+Option C: If the PluginProvider already supports migration discovery from plugin directories, follow that pattern.
+
+**Choose the approach that matches existing LibreNMS patterns.** If Option A is used, adjust the migration file paths below accordingly.
+
+The same investigation applies to route loading for Task 14. Check how existing plugins register routes and follow the same mechanism.
 
 - [ ] **Step 1: Create sessions migration**
 
@@ -2117,7 +2101,7 @@ return new class extends Migration
     {
         Schema::create('ai_messages', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('session_id')->constrained('ai_sessions')->onDelete('cascade');
+            $table->foreignId('ai_session_id')->constrained('ai_sessions')->onDelete('cascade');
             $table->string('role', 20); // 'user', 'assistant', 'system', 'tool'
             $table->longText('content');
             $table->json('tool_calls')->nullable(); // For assistant messages with tool calls
@@ -2125,7 +2109,7 @@ return new class extends Migration
             $table->integer('tokens')->nullable(); // Estimated token count
             $table->timestamps();
 
-            $table->index('session_id');
+            $table->index('ai_session_id');
         });
     }
 
@@ -2223,7 +2207,7 @@ class AiMessage extends Model
 {
     protected $table = 'ai_messages';
 
-    protected $fillable = ['session_id', 'role', 'content', 'tool_calls', 'tool_call_id', 'tokens'];
+    protected $fillable = ['ai_session_id', 'role', 'content', 'tool_calls', 'tool_call_id', 'tokens'];
 
     protected function casts(): array
     {
@@ -2235,7 +2219,7 @@ class AiMessage extends Model
 
     public function session(): BelongsTo
     {
-        return $this->belongsTo(AiSession::class, 'session_id');
+        return $this->belongsTo(AiSession::class, 'ai_session_id');
     }
 }
 ```
@@ -3167,7 +3151,7 @@ class ConversationManager
 
         // Store user message
         AiMessage::create([
-            'session_id' => $session->id,
+            'ai_session_id' => $session->id,
             'role' => 'user',
             'content' => $message,
         ]);
@@ -3180,7 +3164,7 @@ class ConversationManager
 
         // Store assistant response
         AiMessage::create([
-            'session_id' => $session->id,
+            'ai_session_id' => $session->id,
             'role' => 'assistant',
             'content' => $result['content'],
         ]);
@@ -3264,7 +3248,76 @@ Create the HTTP endpoint that ties everything together, plus the plugin registra
 - Create: `app/Plugins/AiAssistant/Settings.php`
 - Create: `app/Plugins/AiAssistant/resources/views/settings.blade.php`
 
-- [ ] **Step 1: Create AiChatController**
+- [ ] **Step 1: Create AiServiceFactory**
+
+Extract service construction into a factory so it can be reused by the chat controller, IRC adapter, and monitoring engine without duplication.
+
+Create `app/Plugins/AiAssistant/Services/AiServiceFactory.php`:
+
+```php
+<?php
+
+namespace App\Plugins\AiAssistant\Services;
+
+use App\Plugins\AiAssistant\Providers\LlmProviderInterface;
+use App\Plugins\AiAssistant\Providers\OpenAiCompatibleProvider;
+
+class AiServiceFactory
+{
+    /**
+     * Build the full service stack from plugin settings.
+     *
+     * @return array{conversation_manager: ConversationManager, llm_service: LlmService}
+     */
+    public static function fromSettings(array $settings): array
+    {
+        $provider = self::buildProvider($settings);
+        $costTracker = self::buildCostTracker($settings);
+        $tools = LlmService::discoverTools();
+        $llmService = new LlmService($provider, new ContextBuilder(), $costTracker, $tools);
+
+        $manager = new ConversationManager($llmService);
+        $manager->setSessionTimeout((int) ($settings['session_timeout'] ?? 30));
+        $manager->setMaxHistory((int) ($settings['max_messages_per_session'] ?? 50));
+
+        return [
+            'conversation_manager' => $manager,
+            'llm_service' => $llmService,
+        ];
+    }
+
+    public static function buildProvider(array $settings, string $context = 'chat'): LlmProviderInterface
+    {
+        $temperatureKey = "temperature_$context";
+
+        return new OpenAiCompatibleProvider(
+            apiUrl: $settings['api_url'] ?? 'https://api.openai.com/v1',
+            apiKey: $settings['api_key'] ?? '',
+            model: $settings['model'] ?? 'gpt-4o',
+            maxTokens: (int) ($settings['max_tokens'] ?? 1000),
+            temperature: (float) ($settings[$temperatureKey] ?? 0.3),
+        );
+    }
+
+    public static function buildCostTracker(array $settings): CostTracker
+    {
+        return new CostTracker(
+            costPerInputToken: (float) ($settings['cost_per_input_token'] ?? 0.000003),
+            costPerOutputToken: (float) ($settings['cost_per_output_token'] ?? 0.000015),
+            maxDailyCost: (float) ($settings['max_cost_daily'] ?? 10.0),
+            maxMonthlyCost: (float) ($settings['max_cost_monthly'] ?? 100.0),
+            maxQueryCost: (float) ($settings['max_cost_per_query'] ?? 1.0),
+        );
+    }
+
+    public static function isConfigured(array $settings): bool
+    {
+        return ! empty($settings['api_key'] ?? '');
+    }
+}
+```
+
+- [ ] **Step 2: Create AiChatController using the factory**
 
 ```php
 <?php
@@ -3272,11 +3325,7 @@ Create the HTTP endpoint that ties everything together, plus the plugin registra
 namespace App\Plugins\AiAssistant\Http;
 
 use App\Http\Controllers\Controller;
-use App\Plugins\AiAssistant\Providers\OpenAiCompatibleProvider;
-use App\Plugins\AiAssistant\Services\ContextBuilder;
-use App\Plugins\AiAssistant\Services\ConversationManager;
-use App\Plugins\AiAssistant\Services\CostTracker;
-use App\Plugins\AiAssistant\Services\LlmService;
+use App\Plugins\AiAssistant\Services\AiServiceFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -3297,31 +3346,12 @@ class AiChatController extends Controller
         $settings = app(\LibreNMS\Interfaces\Plugins\PluginManagerInterface::class)
             ->getSettings('AiAssistant');
 
-        if (empty($settings['api_key'] ?? '')) {
+        if (! AiServiceFactory::isConfigured($settings)) {
             return response()->json(['error' => 'AI Assistant is not configured. Set an API key in settings.'], 503);
         }
 
-        $provider = new OpenAiCompatibleProvider(
-            apiUrl: $settings['api_url'] ?? 'https://api.openai.com/v1',
-            apiKey: $settings['api_key'],
-            model: $settings['model'] ?? 'gpt-4o',
-            maxTokens: (int) ($settings['max_tokens'] ?? 1000),
-            temperature: (float) ($settings['temperature_chat'] ?? 0.5),
-        );
-
-        $costTracker = new CostTracker(
-            costPerInputToken: (float) ($settings['cost_per_input_token'] ?? 0.000003),
-            costPerOutputToken: (float) ($settings['cost_per_output_token'] ?? 0.000015),
-            maxDailyCost: (float) ($settings['max_cost_daily'] ?? 10.0),
-            maxMonthlyCost: (float) ($settings['max_cost_monthly'] ?? 100.0),
-            maxQueryCost: (float) ($settings['max_cost_per_query'] ?? 1.0),
-        );
-
-        $tools = LlmService::discoverTools();
-        $llmService = new LlmService($provider, new ContextBuilder(), $costTracker, $tools);
-        $manager = new ConversationManager($llmService);
-        $manager->setSessionTimeout((int) ($settings['session_timeout'] ?? 30));
-        $manager->setMaxHistory((int) ($settings['max_messages_per_session'] ?? 50));
+        $services = AiServiceFactory::fromSettings($settings);
+        $manager = $services['conversation_manager'];
 
         $sessionId = $request->input('session_id', 'web-' . $user->user_id . '-' . uniqid());
 
@@ -3448,11 +3478,12 @@ class Settings extends SettingsHook
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/Plugins/AiAssistant/Http/AiChatController.php \
+git add app/Plugins/AiAssistant/Services/AiServiceFactory.php \
+        app/Plugins/AiAssistant/Http/AiChatController.php \
         app/Plugins/AiAssistant/routes.php \
         app/Plugins/AiAssistant/Settings.php \
         app/Plugins/AiAssistant/resources/views/settings.blade.php
-git commit -m "feat(ai): add chat API endpoint, plugin routes, and settings UI"
+git commit -m "feat(ai): add service factory, chat API endpoint, plugin routes, and settings UI"
 ```
 
 ---
