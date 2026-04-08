@@ -91,7 +91,7 @@ class ConversationManagerTest extends TestCase
 
         $result = $manager->setSessionTimeout(45)->setMaxHistoryMessages(25);
 
-        $this->assertNotNull($result);
+        $this->assertIsObject($result);
     }
 
     protected function tearDown(): void
