@@ -26,17 +26,12 @@
 
 namespace App\Plugins\AiAssistant;
 
-use App\Models\User;
 use App\Plugins\Hooks\SettingsHook;
 
 class Settings extends SettingsHook
 {
     public string $view = 'resources.views.settings';
 
-    public function authorize(User $user): bool
-    {
-        return $user->can('admin');
-    }
 
     public function data(array $settings = []): array
     {
