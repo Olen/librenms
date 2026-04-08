@@ -1,8 +1,9 @@
 # LibreNMS AI Assistant — Design Specification
 
 **Date:** 2026-04-08
-**Status:** Approved
+**Status:** Approved (revised after review)
 **Branch:** feature/ai-assistant
+**Review:** [2026-04-08-ai-assistant-design-review.md](2026-04-08-ai-assistant-design-review.md)
 
 ## Overview
 
@@ -31,8 +32,8 @@ Layered service architecture with clean interfaces between layers:
 │   assembly (system prompt + context snapshot)    │
 ├────────────────────┬────────────────────────────┤
 │   Data Access      │   Monitoring Engine         │
-│   Layer (Tools)    │   Ring buffer, pattern       │
-│   Device, Alert,   │   detection, alert           │
+│   Layer (Tools)    │   Sliding window query,      │
+│   Device, Alert,   │   pattern detection, alert   │
 │   Port, Sensor,    │   injection, scheduled       │
 │   Log queries      │   reports                    │
 ├────────────────────┴────────────────────────────┤
@@ -88,6 +89,10 @@ Called when key events occur in LibreNMS. The PluginManager dispatches to all im
 - Sensor threshold crossings — when a sensor value exceeds warning/critical limits (type: `sensor`)
 - Port status changes — when a port goes up/down or error counters spike (type: `port_status`)
 
+**Non-blocking contract:** `handleEvent()` implementations MUST be non-blocking. The PluginManager's dispatch loop wraps each call in a try/catch with a configurable timeout (default: 100ms). If a plugin's handler exceeds the timeout or throws an exception, the error is logged and the dispatch continues to the next plugin. This prevents a misbehaving plugin from stalling the poller or alert pipeline.
+
+The AI plugin's `EventListener` implementation simply writes the event to the `ai_events` buffer table — a single INSERT, guaranteed fast. All heavy processing (LLM calls, analysis) happens asynchronously in the scheduled flush cycle.
+
 ### AlertInjectionHook
 
 ```php
@@ -96,7 +101,7 @@ interface AlertInjectionHook {
 }
 ```
 
-Called during the alert processing cycle. Allows plugins to inject alerts into the existing transport system without creating alert rules.
+Called during the alert processing cycle. Allows plugins to inject alerts into the existing transport system without creating alert rules. Injected alerts pass through the same device-group and transport-group filtering as normal alerts, ensuring RBAC is respected in shared channels (see Section 6: Alert injection for details).
 
 ### GlobalWidgetHook
 
@@ -148,7 +153,9 @@ class LlmResponse {
 - `ai.api_key` — API key
 - `ai.model` — model identifier
 - `ai.max_tokens` — response length limit
-- `ai.temperature` — creativity setting (low for monitoring, adjustable for chat)
+- `ai.temperature_chat` — temperature for interactive chat (default: 0.5, slightly creative for natural responses)
+- `ai.temperature_monitoring` — temperature for monitoring analysis (default: 0.1, deterministic structured output)
+- `ai.temperature_reports` — temperature for report generation (default: 0.3, balanced)
 
 Adding a new provider means creating one class that implements `LlmProviderInterface`. No other changes needed.
 
@@ -167,7 +174,7 @@ interface AiToolInterface {
 }
 ```
 
-The `$user` parameter enables RBAC — tools filter results based on what the user is allowed to see. When called from the monitoring engine (no user context), full access is granted.
+The `$user` parameter enables RBAC — tools filter results based on what the user is allowed to see. When called from the monitoring engine (no user context), full access is granted for analysis purposes. However, any alerts generated from monitoring analysis are filtered through device-group transport mappings before delivery, ensuring that shared channels only receive alerts about devices their recipients are authorized to see (see Section 6: Alert injection).
 
 ### Initial tool set
 
@@ -209,11 +216,28 @@ Builds the system prompt from:
 
 ```
 User message → LLM → tool_call?
-  → yes: execute tool, append result, send back to LLM → repeat
+  → yes: execute tool, send status callback, append result, send back to LLM → repeat
   → no: return final text response
 ```
 
 Max iterations capped (e.g., 10 tool calls per query) to prevent runaway costs.
+
+**Intermediate status callbacks:** The tool execution loop accepts an optional status callback function. On each tool call, the callback is invoked with a human-readable description of what's happening (e.g., "Checking device status...", "Looking up alert history..."). Interface adapters use this to provide real-time feedback:
+- Web chat: updates the "thinking..." indicator with specific status text
+- IRC: sends intermediate notices to the channel (rate-limited to avoid flood)
+
+This prevents users from staring at a blank screen during multi-tool queries that may take 15-30 seconds.
+
+### Token-aware history management
+
+Before sending conversation history to the LLM, the service estimates total token count (system prompt + history + tool definitions) and compares against `provider.getMaxContextTokens()` minus a reserve for the response (`ai.max_tokens`).
+
+If the total exceeds the limit:
+1. Oldest messages are dropped from history (keeping the most recent)
+2. If still too large, tool call results in history are summarized (replaced with a compact version)
+3. The system prompt context snapshot and tool listings are never trimmed — they're essential
+
+This ensures compatibility with smaller context models (local Ollama with 4-8k context) without requiring manual tuning.
 
 ### Context snapshot generator
 
@@ -249,6 +273,26 @@ Every LLM call is logged with input/output tokens, provider, model, and triggeri
 
 Per-user rate limits for interactive chat. Monitoring and reports have separate budgets.
 
+### Error handling and retry strategy
+
+LLM API calls can fail for various reasons. The service handles these gracefully:
+
+**Retry with exponential backoff:**
+- HTTP 429 (rate limited): retry after the `Retry-After` header value, or 2^attempt seconds (max 60s), up to 3 retries
+- HTTP 5xx (server error): retry with exponential backoff, up to 3 retries
+- Network errors / timeouts: retry once after 5 seconds
+
+**Circuit breaker:**
+- After 5 consecutive failures within 10 minutes, the service enters a "circuit open" state
+- In this state, all LLM calls immediately return a friendly error message ("AI service temporarily unavailable") without attempting the API call
+- After a configurable cooldown (default: 5 minutes), the circuit enters "half-open" — the next request is attempted, and if it succeeds, the circuit closes and normal operation resumes
+
+**Graceful degradation:**
+- If the monitoring flush fails, the error is logged and the next scheduled flush proceeds normally — one failure doesn't cascade
+- If chat fails, the user gets a clear error message; the session is preserved so they can retry
+- If a tool execution throws an exception mid-loop, the error is captured and sent to the LLM as a tool result ("Error: could not query devices"), allowing it to respond gracefully rather than crashing the entire loop
+- Malformed JSON in structured output (monitoring analysis): the response is logged for debugging and the flush is skipped — no alerts are injected from unparseable output
+
 ---
 
 ## Section 5: Conversation Manager
@@ -258,11 +302,11 @@ Handles sessions, message history, and bridges interfaces to the LLM Service.
 ### Session management
 
 - Each conversation gets a session ID (persisted in DB)
-- IRC: session per user-channel combination
+- IRC: session per authenticated user (not per channel — if a user moves from `#network` to a DM, the session follows them). Unauthenticated users cannot use the AI command.
 - Web chat: session per browser tab/window, tied to authenticated user
 - Sessions store message history for conversation context
 - Sessions expire after configurable inactivity (default: 30 minutes)
-- Max history length per session (default: 50 messages) — oldest messages trimmed
+- Max history length per session (default: 50 messages) — managed by token-aware trimming (see Section 4) rather than simple message count cutoff
 
 ### Core interface
 
@@ -315,9 +359,11 @@ The system prompt tells the LLM to only discuss devices the user can access. Thi
 
 The proactive system that watches the network without being asked.
 
-### Sliding window
+### Sliding window query
 
-- Queries recent events from the database each cycle: device state changes, alerts, syslog entries, sensor threshold crossings, port status changes
+Events are queried from the database each cycle — there is no in-memory buffer. This is simpler operationally (no separate daemon, survives restarts) and the queries are cheap (indexed timestamp lookups over recent data).
+
+- Queries recent events from the `ai_events` buffer table (populated by `EventListenerHook`) and supplements with direct queries on `eventlog`, `syslog`, `alert_log` tables
 - Window size is configurable (default: 30 minutes)
 - Each event is a lightweight struct: `{timestamp, type, device_id, summary, raw_data}`
 
@@ -333,6 +379,13 @@ The proactive system that watches the network without being asked.
 - Force a flush regardless — this is the "trend detection" pass
 - Even if nothing triggered the quick diff, the LLM sees the full window and can spot slow-moving trends
 
+### Operating modes
+
+The monitoring engine supports two modes, configurable in settings:
+
+- **Learning mode** (default when first enabled) — The engine observes and builds patterns but does NOT inject alerts. All detected anomalies are logged as `pending_review` patterns. This allows the system to learn the network's baseline behavior (backup jobs, scheduled maintenance, recurring patterns) before it starts alerting. Admins review accumulated patterns and switch to active mode when satisfied.
+- **Active mode** — Full operation: pattern detection AND alert injection. Only enable after the engine has had time to learn baseline patterns and the admin has reviewed initial findings.
+
 ### LLM analysis prompt
 
 The flush sends the full sliding window to the LLM with:
@@ -344,16 +397,19 @@ The flush sends the full sliding window to the LLM with:
 ### Structured output
 
 The LLM returns JSON with:
-- `alerts[]` — things needing immediate attention, with severity and suggested message
+- `alerts[]` — things needing immediate attention, with severity and suggested message, including `device_ids` for each alert
 - `patterns[]` — newly observed correlations, flagged as `pending_review`
 - `notes[]` — observations that aren't actionable but worth logging
 - `suppress[]` — events matching known patterns that don't need alerting
 
+If the LLM returns malformed JSON, the response is logged for debugging and the flush is skipped — no alerts are injected from unparseable output.
+
 ### Alert injection
 
 - Items in `alerts[]` are pushed through the `AlertInjectionHook` into existing transports
-- Delivered via whatever transports the admin has configured (email, Slack, IRC, etc.)
+- **RBAC filtering:** Each AI-generated alert includes the `device_ids` it relates to. The alert injection pipeline uses the same device-group → transport-group mappings that normal LibreNMS alerts use. This ensures that alerts about device X only reach transports configured to receive alerts for device X's group. Shared channels (Slack, IRC) never receive alerts about devices their audience shouldn't know about.
 - Alert messages include an `[AI]` tag so recipients know the source
+- In learning mode, alerts are logged but not delivered
 - Logged in `ai_alerts` table for audit trail
 
 ### Scheduled reports
@@ -384,43 +440,60 @@ Persistent memory that makes the system smarter over time.
 | title | string | Short description ("Backup job causes I/O spike") |
 | description | text | Full explanation of the pattern |
 | devices | json | Device IDs involved |
-| schedule | string | When it occurs ("daily 00:00-00:30", "weekdays 08:00-09:00") |
 | category | enum | `recurring`, `correlation`, `baseline`, `suppression` |
 | status | enum | `pending_review`, `approved`, `rejected`, `expired` |
-| confidence | float | LLM's confidence score (0-1) |
-| occurrences | int | How many times observed |
+| occurrences | int | How many times observed — primary trust signal |
 | first_seen | datetime | First detection |
 | last_seen | datetime | Most recent observation |
 | created_by | enum | `ai`, `human` — admins can manually add patterns |
 | reviewed_by | int | User ID who approved/rejected |
 | reviewed_at | datetime | When reviewed |
 
+**Note on confidence:** LLMs are unreliable at self-calibrating confidence scores. Instead of storing an LLM-generated confidence value, the `occurrences` count serves as the primary trust signal. A pattern observed 15 times is more trustworthy than one the LLM rates at 0.95 confidence. The admin UI sorts pending patterns by occurrence count to surface the most-observed patterns first.
+
+### Suppression conditions table: `ai_pattern_conditions`
+
+Suppression patterns use structured, verifiable conditions rather than free-text descriptions that the LLM interprets at runtime. This makes suppression deterministic and auditable.
+
+| Column | Type | Purpose |
+|---|---|---|
+| id | int | Primary key |
+| pattern_id | int | FK to `ai_patterns` |
+| device_ids | json | Specific device IDs this condition applies to |
+| time_window | string | Cron expression for when suppression is active (e.g., `0-30 0 * * *` for daily 00:00-00:30) |
+| alert_rule_ids | json | Specific alert rule IDs to suppress (null = any) |
+| event_types | json | Event types to suppress (e.g., `["sensor", "port_status"]`) |
+
+When the monitoring engine considers raising an alert, it checks active suppression conditions against structured fields — device ID, current time vs cron window, alert rule ID. No LLM interpretation is involved in the suppression decision. The LLM proposes suppression conditions when it detects recurring patterns, but the admin reviews and edits the structured fields before approving.
+
 ### Pattern lifecycle
 
-1. LLM detects a correlation during monitoring flush → saves with status `pending_review`
-2. Same pattern detected again → `occurrences` increments, `confidence` may increase
-3. Admin reviews in web UI — approves or rejects
-4. Approved patterns included in LLM context during future flushes, can suppress alerts
-5. Patterns expire if not seen for configurable period (default: 90 days)
+1. LLM detects a correlation during monitoring flush → saves pattern with status `pending_review`
+2. If the pattern is a recurring event, the LLM also proposes structured suppression conditions (device IDs, time window as cron, event types)
+3. Same pattern detected again → `occurrences` increments
+4. Admin reviews in web UI — approves or rejects. For suppression patterns, the admin can edit the structured conditions (cron expression, device IDs, alert rule IDs) before approving
+5. Approved patterns included in LLM context during future flushes. Suppression patterns with approved conditions actively suppress matching alerts.
+6. Patterns expire if not seen for configurable period (default: 90 days)
 
 ### How patterns are used
 
-- **During monitoring flushes** — LLM sees approved patterns and can suppress known-benign events
+- **During monitoring flushes** — LLM sees approved patterns and can note "this matches known pattern X" in its analysis
 - **During chat** — user asks "why did those alerts fire at midnight?" and LLM references the pattern
-- **Alert suppression** — only `approved` patterns with category `suppression` can prevent alerts
+- **Alert suppression** — only `approved` suppression patterns with valid structured conditions can prevent alerts. Suppression is evaluated by code against the conditions table, not by the LLM at runtime.
 - **Pending patterns** — visible to LLM but cannot suppress; it can flag "I think this is the same pattern I noticed yesterday" but still alerts
 
 ### Admin UI (on the dedicated AI page)
 
-- List all patterns with filtering by status, category, device
+- List all patterns with filtering by status, category, device — sorted by occurrences (most-observed first)
 - Approve/reject pending patterns
-- Edit pattern details
-- Manually create patterns
+- Edit pattern details and suppression conditions (cron expressions, device IDs, alert rule IDs)
+- Manually create patterns with structured conditions
 - Delete patterns
 
 ### Safety rails
 
-- Only `approved` patterns can suppress alerts
+- Only `approved` patterns with valid structured conditions can suppress alerts
+- Suppression is deterministic — evaluated by code, not LLM interpretation
 - Patterns involving devices a user can't access are hidden from that user
 - All pattern changes are audit-logged
 - Admins can bulk-reject or wipe patterns if the LLM learns incorrect correlations
@@ -501,7 +574,7 @@ app/Plugins/AiAssistant/
     Services/
         LlmService.php               # Prompt assembly, tool loop, cost tracking
         ConversationManager.php       # Sessions, history, RBAC
-        MonitoringEngine.php          # Ring buffer, flush cycle, pattern detection
+        MonitoringEngine.php          # Sliding window, flush cycle, pattern detection
         ReportGenerator.php           # Scheduled report creation
         ContextBuilder.php            # Network snapshot generator
         CostTracker.php               # Budget enforcement
@@ -535,7 +608,9 @@ app/Plugins/AiAssistant/
         create_ai_sessions_table.php
         create_ai_messages_table.php
         create_ai_patterns_table.php
+        create_ai_pattern_conditions_table.php
         create_ai_alerts_table.php
+        create_ai_events_table.php
         create_ai_cost_log_table.php
         create_ai_reports_table.php
 
@@ -543,7 +618,9 @@ app/Plugins/AiAssistant/
         AiSession.php
         AiMessage.php
         AiPattern.php
+        AiPatternCondition.php
         AiAlert.php
+        AiEvent.php
         AiCostLog.php
         AiReport.php
 
@@ -581,7 +658,9 @@ All configuration managed via the `SettingsHook`, grouped into sections:
 - API URL
 - API key (masked)
 - Model name
-- Temperature (slider, 0-1, default 0.3)
+- Temperature — chat (slider, 0-1, default 0.5)
+- Temperature — monitoring (slider, 0-1, default 0.1)
+- Temperature — reports (slider, 0-1, default 0.3)
 - Max tokens per response
 
 ### Cost Controls
@@ -593,10 +672,11 @@ All configuration managed via the `SettingsHook`, grouped into sections:
 
 ### Monitoring
 - Enable/disable proactive monitoring (default: **disabled** — must be explicitly enabled)
+- Monitoring mode: **learning** (observe and build patterns only) or **active** (observe + inject alerts). Default: learning when first enabled.
 - Tie to poller interval (toggle, default on when monitoring is enabled)
 - Forced flush interval in minutes (default 15)
 - Sliding window size in minutes (default 30)
-- Enable/disable alert injection
+- Enable/disable alert injection (only available in active mode)
 
 ### Reports
 - Enable/disable scheduled reports
@@ -623,3 +703,26 @@ All configuration managed via the `SettingsHook`, grouped into sections:
 - Queries today (chat / monitoring / reports breakdown)
 - Active patterns count
 - Active sessions count
+
+---
+
+## Section 11: Plugin Data Lifecycle
+
+### Installation
+- Plugin migrations run via Laravel's migration system when the plugin is enabled
+- All tables are prefixed with `ai_` to avoid collisions
+
+### Upgrades
+- Plugin migrations are versioned and tracked in Laravel's `migrations` table like any other migration
+- New migrations are added for schema changes — never modify existing migrations
+- Plugin version is tracked in the `plugins` table
+
+### Uninstall
+- Disabling the plugin stops all scheduled tasks and event listeners
+- Database tables are NOT dropped on disable — data is preserved in case the plugin is re-enabled
+- A separate "Purge data" button in the admin UI drops all `ai_*` tables and removes migration records. This is a destructive action requiring confirmation.
+
+### Core model compatibility
+- Tools reference Eloquent models (`Device`, `Port`, `Alert`, etc.) by their public API (scopes, relationships, attributes)
+- If a core upgrade changes a model's interface, the plugin may need updating — this is standard for any plugin that integrates deeply with core
+- The plugin should declare a minimum LibreNMS version in its metadata
