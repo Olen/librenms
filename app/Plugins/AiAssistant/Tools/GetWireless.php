@@ -14,7 +14,7 @@ class GetWireless extends AbstractAiTool
 
     public function description(): string
     {
-        return 'Get wireless/WiFi sensor data including client counts, signal quality, RSSI, SNR, channel utilization, AP counts, data rates, noise floor, and more. Use for "how many WiFi clients are connected?" or "what is the signal quality on the APs?" or "which access points have poor signal?"';
+        return 'Get wireless/WiFi sensor data. Call with no sensor_class filter first to see which sensor classes are available in the network, then drill down. Common classes: clients (connected users), power (signal strength in dBm), utilization (channel usage %), frequency (channel frequency), rssi, snr, quality, noise-floor, rate, ap-count. Not all classes may exist in every network.';
     }
 
     public function parameters(): array
@@ -54,10 +54,21 @@ class GetWireless extends AbstractAiTool
             $query->where('sensor_class', $params['sensor_class']);
         }
 
+        // Always include a summary of available classes so the LLM knows what's in the network
+        $classQuery = WirelessSensor::query();
+        if ($user) {
+            $classQuery->whereHas('device', fn ($q) => $q->hasAccess($user));
+        }
+        $availableClasses = $classQuery->selectRaw('sensor_class, count(*) as cnt')
+            ->groupBy('sensor_class')
+            ->pluck('cnt', 'sensor_class')
+            ->toArray();
+
         $limit = min($params['limit'] ?? 50, 100);
         $sensors = $query->limit($limit)->get();
 
         return [
+            'available_classes' => $availableClasses,
             'count' => $sensors->count(),
             'wireless_sensors' => $sensors->map(fn ($s) => [
                 'device' => $s->device?->hostname,
