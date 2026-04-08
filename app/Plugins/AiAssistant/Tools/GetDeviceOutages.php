@@ -14,7 +14,7 @@ class GetDeviceOutages extends AbstractAiTool
 
     public function description(): string
     {
-        return 'Returns device outage history (times when devices went down and came back up). Useful for understanding availability and MTTR.';
+        return 'Returns device outage history — periods when devices were UNREACHABLE (ICMP failed). IMPORTANT: An outage does NOT mean the device rebooted. To check for actual reboots, compare the device uptime (from get_device_detail) against the outage time. If uptime >> outage duration, it was a network connectivity issue, not a reboot.';
     }
 
     public function parameters(): array
