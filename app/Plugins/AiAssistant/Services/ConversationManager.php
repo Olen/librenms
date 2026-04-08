@@ -39,7 +39,7 @@ class ConversationManager
     private int $maxHistoryMessages = 50;
 
     public function __construct(
-        private LlmService $llmService,
+        private readonly LlmService $llmService,
     ) {
     }
 

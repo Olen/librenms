@@ -27,6 +27,6 @@
 use App\Plugins\AiAssistant\Http\AiChatController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['web', 'auth'])->prefix('plugin/ai')->group(function () {
+Route::middleware(['web', 'auth'])->prefix('plugin/ai')->group(function (): void {
     Route::post('/chat', [AiChatController::class, 'chat'])->name('plugin.ai.chat');
 });

@@ -31,7 +31,7 @@ use LibreNMS\Util\Http;
 
 class OpenAiCompatibleProvider implements LlmProviderInterface
 {
-    private PendingRequest $client;
+    private readonly PendingRequest $client;
 
     public function __construct(
         private readonly string $apiUrl,

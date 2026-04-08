@@ -79,7 +79,7 @@ final class HookDispatchTest extends TestCase
 
         Log::shouldReceive('error')
             ->once()
-            ->withArgs(fn ($msg) => str_contains($msg, 'FailPlugin') && str_contains($msg, 'Handler exploded'));
+            ->withArgs(fn ($msg) => str_contains((string) $msg, 'FailPlugin') && str_contains((string) $msg, 'Handler exploded'));
 
         // Should not throw
         $manager->dispatchEvent('test.event', []);
@@ -142,7 +142,7 @@ final class HookDispatchTest extends TestCase
 
         Log::shouldReceive('error')
             ->once()
-            ->withArgs(fn ($msg) => str_contains($msg, 'BrokenPlugin') && str_contains($msg, 'DB gone'));
+            ->withArgs(fn ($msg) => str_contains((string) $msg, 'BrokenPlugin') && str_contains((string) $msg, 'DB gone'));
 
         $alerts = $manager->collectPluginAlerts();
 
@@ -222,7 +222,7 @@ final class HookDispatchTest extends TestCase
 
         Log::shouldReceive('error')
             ->once()
-            ->withArgs(fn ($msg) => str_contains($msg, 'BadSchedule') && str_contains($msg, 'Schedule error'));
+            ->withArgs(fn ($msg) => str_contains((string) $msg, 'BadSchedule') && str_contains((string) $msg, 'Schedule error'));
 
         // Should not throw
         $manager->registerPluginSchedules($schedule);

@@ -75,6 +75,6 @@ class AiServiceFactoryTest extends TestCase
             'max_cost_monthly' => 50.0,
         ]);
 
-        $this->assertNotNull($tracker);
+        $this->assertIsObject($tracker);
     }
 }

@@ -68,8 +68,8 @@ class ToolsTest extends TestCase
     public function testAllToolsImplementInterface(): void
     {
         foreach ($this->allTools() as $tool) {
-            $this->assertInstanceOf(AiToolInterface::class, $tool, get_class($tool) . ' must implement AiToolInterface');
-            $this->assertInstanceOf(AbstractAiTool::class, $tool, get_class($tool) . ' must extend AbstractAiTool');
+            $this->assertInstanceOf(AiToolInterface::class, $tool, $tool::class . ' must implement AiToolInterface');
+            $this->assertInstanceOf(AbstractAiTool::class, $tool, $tool::class . ' must extend AbstractAiTool');
         }
     }
 
@@ -90,7 +90,7 @@ class ToolsTest extends TestCase
     public function testAllToolsHaveNonEmptyDescription(): void
     {
         foreach ($this->allTools() as $tool) {
-            $this->assertNotEmpty($tool->description(), get_class($tool) . ' must have a non-empty description');
+            $this->assertNotEmpty($tool->description(), $tool::class . ' must have a non-empty description');
         }
     }
 
@@ -113,8 +113,8 @@ class ToolsTest extends TestCase
     {
         foreach ($this->allTools() as $tool) {
             $def = $tool->toFunctionDefinition();
-            $this->assertSame($tool->name(), $def['function']['name'], get_class($tool) . ' function name mismatch');
-            $this->assertSame($tool->description(), $def['function']['description'], get_class($tool) . ' description mismatch');
+            $this->assertSame($tool->name(), $def['function']['name'], $tool::class . ' function name mismatch');
+            $this->assertSame($tool->description(), $def['function']['description'], $tool::class . ' description mismatch');
         }
     }
 

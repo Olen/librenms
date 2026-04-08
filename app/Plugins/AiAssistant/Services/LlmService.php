@@ -47,9 +47,9 @@ class LlmService
      * @param  AiToolInterface[]  $tools
      */
     public function __construct(
-        private LlmProviderInterface $provider,
-        private ContextBuilder $contextBuilder,
-        private CostTracker $costTracker,
+        private readonly LlmProviderInterface $provider,
+        private readonly ContextBuilder $contextBuilder,
+        private readonly CostTracker $costTracker,
         array $tools = [],
     ) {
         foreach ($tools as $tool) {
@@ -191,7 +191,7 @@ class LlmService
 
                 // Exponential backoff: 1s, 2s, 4s
                 if ($attempt < self::MAX_RETRIES - 1) {
-                    usleep((int) (pow(2, $attempt) * 1000000));
+                    usleep((int) (2 ** $attempt * 1000000));
                 }
             }
         }

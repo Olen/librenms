@@ -33,11 +33,11 @@ use Carbon\Carbon;
 class CostTracker
 {
     public function __construct(
-        private float $costPerInputToken,
-        private float $costPerOutputToken,
-        private float $maxDailyCost,
-        private float $maxMonthlyCost,
-        private float $maxQueryCost,
+        private readonly float $costPerInputToken,
+        private readonly float $costPerOutputToken,
+        private readonly float $maxDailyCost,
+        private readonly float $maxMonthlyCost,
+        private readonly float $maxQueryCost,
     ) {
     }
 
