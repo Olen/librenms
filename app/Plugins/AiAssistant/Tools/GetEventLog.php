@@ -93,7 +93,14 @@ class GetEventLog extends AbstractAiTool
         }
 
         if (! empty($params['search'])) {
-            $query->where('message', 'like', '%' . $params['search'] . '%');
+            // Split search into words and match each independently
+            // so "restic lupus" matches "Restic Backup 61lupus"
+            $words = preg_split('/\s+/', trim($params['search']));
+            foreach ($words as $word) {
+                if ($word !== '') {
+                    $query->where('message', 'like', '%' . $word . '%');
+                }
+            }
         }
 
         $limit = min((int) ($params['limit'] ?? 100), 500);
