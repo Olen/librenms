@@ -52,6 +52,7 @@ class GetEventLog extends AbstractAiTool
 
     public function execute(array $params, ?User $user = null): array
     {
+        \Log::info('GetEventLog called with params: ' . json_encode($params));
         $hours = (int) ($params['hours'] ?? 24);
         $since = now()->subHours($hours);
 

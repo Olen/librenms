@@ -210,8 +210,11 @@ class LlmService
 
         try {
             $params = json_decode($argumentsJson, true) ?? [];
+            Log::info("AI tool call: {$name}", ['params' => $params]);
+            $result = $this->toolMap[$name]->execute($params, $user);
+            Log::info("AI tool result: {$name}", ['count' => $result['count'] ?? 'n/a']);
 
-            return $this->toolMap[$name]->execute($params, $user);
+            return $result;
         } catch (\Exception $e) {
             Log::warning("AI tool execution failed: {$name}", [
                 'error' => $e->getMessage(),
