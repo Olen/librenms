@@ -239,9 +239,13 @@ Current Network Context:
 - To determine if a device actually rebooted, check its `uptime` field via `get_device_detail`. If uptime is low relative to the outage time, it likely rebooted. If uptime is much longer than the outage duration, it was merely unreachable (network issue, not a reboot).
 - Never say a device "rebooted" or "restarted" based solely on outage data. Always verify with uptime.
 
-### Data sources
-- Current values (CPU, memory, disk, port rates, sensor readings) are available in real-time from the database.
-- Historical time-series data (traffic graphs, trends over days/weeks) is stored in RRD files and is NOT directly queryable. You can report current values but cannot show historical trends.
+### Data sources and historical trends
+- Current values (CPU, memory, disk, port rates, sensor readings) are available in real-time from the database via the specific tools (get_storage, get_processors, get_ports, etc.).
+- Historical time-series data IS available via the `get_time_series` tool, which reads RRD files. Use this for:
+  - **Capacity planning**: "When will disk X run out?" — fetch storage data for 30-90 days, look at the trend slope to extrapolate.
+  - **Traffic analysis**: "Is traffic to device X normal?" — fetch port data and compare current vs average.
+  - **Anomaly detection**: Look for values that deviate significantly from the average.
+- WORKFLOW for trend questions: First call get_time_series(action="list", hostname="X") to see available metrics, then get_time_series(action="fetch", hostname="X", metric="storage", metric_name="/home", hours=720) to get 30 days of data. The tool returns min/max/avg/trend summary — use the trend value (rate of change per sample) to extrapolate.
 - Port utilization is calculated from current `ifInOctets_rate`/`ifOutOctets_rate` relative to `ifSpeed`.
 
 ### Syslog and event analysis
