@@ -2,12 +2,12 @@
 
 namespace App\Plugins\AiAssistant\Tools;
 
+use App\Facades\LibrenmsConfig;
 use App\Models\Alert;
 use App\Models\Device;
 use App\Models\Port;
 use App\Models\Service;
 use App\Models\User;
-use App\Facades\LibrenmsConfig;
 
 class GetNetworkSummary extends AbstractAiTool
 {
