@@ -7,7 +7,7 @@ use App\Models\Device;
 use App\Models\Port;
 use App\Models\Service;
 use App\Models\User;
-use LibreNMS\Config;
+use App\Facades\LibrenmsConfig;
 
 class GetNetworkSummary extends AbstractAiTool
 {
@@ -71,7 +71,7 @@ class GetNetworkSummary extends AbstractAiTool
             'ports_down' => $portsDown,
         ];
 
-        if (Config::get('show_services')) {
+        if (LibrenmsConfig::get('show_services')) {
             $serviceQuery = Service::query();
             if ($user !== null) {
                 // @phpstan-ignore-next-line
