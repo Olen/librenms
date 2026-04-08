@@ -32,7 +32,6 @@ class Settings extends SettingsHook
 {
     public string $view = 'resources.views.settings';
 
-
     public function data(array $settings = []): array
     {
         return ['settings' => $settings];
