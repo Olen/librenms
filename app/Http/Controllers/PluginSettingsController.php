@@ -30,12 +30,25 @@ class PluginSettingsController extends Controller
         return view('plugins.settings', $data);
     }
 
-    public function update(Request $request, Plugin $plugin): \Illuminate\Http\RedirectResponse
+    public function update(Request $request, \App\Plugins\PluginManager $manager, Plugin $plugin): \Illuminate\Http\RedirectResponse
     {
-        $plugin->fill($this->validate($request, [
+        $validated = $this->validate($request, [
             'plugin_active' => 'in:0,1',
             'settings' => 'array',
-        ]));
+        ]);
+
+        if (isset($validated['settings'])) {
+            // Let the plugin's SettingsHook transform the submitted
+            // settings (e.g. preserve secrets the form intentionally
+            // omits) before the wholesale replace below.
+            $validated['settings'] = $manager->applyBeforeSave(
+                $plugin->plugin_name,
+                $validated['settings'],
+                (array) $plugin->settings,
+            );
+        }
+
+        $plugin->fill($validated);
 
         if ($plugin->isDirty('plugin_active') && $plugin->plugin_active == 1) {
             // enabling plugin delete notifications assuming they are fixed

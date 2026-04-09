@@ -131,6 +131,37 @@ class PluginManager implements PluginManagerInterface
     }
 
     /**
+     * Dispatch beforeSave to the plugin's SettingsHook, allowing the
+     * plugin to merge or transform submitted settings with the
+     * currently-stored settings before they are persisted. Used by
+     * PluginSettingsController::update before the wholesale replace.
+     *
+     * Returns $incoming unchanged if the plugin has no settings hook, if
+     * the registered hook doesn't extend the abstract SettingsHook (and
+     * therefore has no beforeSave default), or if the hook's authorize()
+     * check denies the current user — matching the authorization
+     * semantics the GET path already uses.
+     *
+     * @param  string  $pluginName
+     * @param  array  $incoming  settings submitted from the form
+     * @param  array  $current  settings currently stored for the plugin
+     * @return array settings to persist
+     */
+    public function applyBeforeSave(string $pluginName, array $incoming, array $current): array
+    {
+        $hookType = \LibreNMS\Interfaces\Plugins\Hooks\SettingsHook::class;
+
+        foreach ($this->hooksFor($hookType, [], $pluginName) as $hook) {
+            $instance = $hook['instance'];
+            if ($instance instanceof Hooks\SettingsHook) {
+                return $instance->beforeSave($incoming, $current);
+            }
+        }
+
+        return $incoming;
+    }
+
+    /**
      * Get the settings stored in the database for a plugin.
      * One plugin shares the settings across all hooks
      *

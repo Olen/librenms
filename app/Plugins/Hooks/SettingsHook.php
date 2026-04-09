@@ -46,6 +46,31 @@ abstract class SettingsHook implements \LibreNMS\Interfaces\Plugins\Hooks\Settin
         ];
     }
 
+    /**
+     * Transform submitted settings before they are persisted.
+     *
+     * Called by PluginSettingsController with the settings submitted from
+     * the form and the settings currently stored for the plugin. The
+     * returned array is what actually gets written to the database.
+     *
+     * Useful for preserving fields the form intentionally omits — most
+     * commonly secrets (API keys, passwords, OAuth tokens) that should
+     * not round-trip through the rendered HTML but also should not be
+     * cleared when the admin saves unrelated changes without re-entering
+     * them.
+     *
+     * The default implementation is a pass-through so existing plugins
+     * keep their historical "wholesale replace" save behavior.
+     *
+     * @param  array  $incoming  settings submitted via the form
+     * @param  array  $current  settings currently stored for this plugin
+     * @return array settings to persist
+     */
+    public function beforeSave(array $incoming, array $current): array
+    {
+        return $incoming;
+    }
+
     final public function handle(string $pluginName, array $settings, Application $app): array
     {
         return array_merge([
