@@ -46,10 +46,17 @@ class Settings extends SettingsHook
 
     public function data(array $settings = []): array
     {
-        // Never round-trip the API key back into the form. The view shows a
-        // placeholder so admins can tell whether a key is already stored,
-        // and submitting a blank value leaves the stored key untouched
-        // (handled in the controller that persists settings).
+        // Never round-trip the API key back into the form — the blade
+        // only sees an "api_key_is_set" boolean and renders a status
+        // badge. The password input starts empty on every render.
+        //
+        // IMPORTANT: LibreNMS's core PluginSettingsController::update
+        // does a wholesale replace of the settings array, so an empty
+        // api_key field on submit currently CLEARS the stored key.
+        // Admins must re-enter the key every time they save. The blade
+        // template warns about this explicitly. Proper "leave blank to
+        // keep current" support requires an upstream core change (a
+        // merge-save path or a beforeSave hook on SettingsHook).
         $settings['api_key_is_set'] = ! empty($settings['api_key']);
         unset($settings['api_key']);
 

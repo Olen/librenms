@@ -10,11 +10,9 @@ class GetEventLog extends AbstractAiTool
 {
     // No EventlogPolicy exists in core yet. doc/Extensions/Authorization.md
     // references eventlog.viewAny but it was never added to the permission
-    // migration. Gate on device viewAny until upstream closes that gap.
-    public function authorize(User $user): bool
-    {
-        return $user->can('viewAny', Device::class);
-    }
+    // migration. Authorize against Device and inherit the AbstractAiTool
+    // fallback so users with explicit device assignments still pass.
+    protected ?string $authorizedModel = Device::class;
 
     public function name(): string
     {

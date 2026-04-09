@@ -9,11 +9,9 @@ use App\Models\User;
 class GetDeviceOutages extends AbstractAiTool
 {
     // DeviceOutage has no dedicated policy; outages are per-device, so
-    // gate on the ability to view devices.
-    public function authorize(User $user): bool
-    {
-        return $user->can('viewAny', Device::class);
-    }
+    // authorize against Device and inherit the fallback behavior from
+    // AbstractAiTool (users with explicit device assignments still pass).
+    protected ?string $authorizedModel = Device::class;
 
     public function name(): string
     {

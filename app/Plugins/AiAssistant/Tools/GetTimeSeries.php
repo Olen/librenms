@@ -10,13 +10,11 @@ use Symfony\Component\Process\Process;
 
 class GetTimeSeries extends AbstractAiTool
 {
-    // Time-series data is always resolved through a device, so gate on
-    // device viewAny. Per-device access is still enforced inside execute()
-    // via the hasAccess() scope on the device lookup query.
-    public function authorize(User $user): bool
-    {
-        return $user->can('viewAny', Device::class);
-    }
+    // Time-series data is always resolved through a device, so authorize
+    // against Device. The AbstractAiTool fallback lets users with explicit
+    // device assignments through; per-device access is still enforced
+    // inside execute() via the hasAccess() scope on the device lookup.
+    protected ?string $authorizedModel = Device::class;
 
     public function name(): string
     {

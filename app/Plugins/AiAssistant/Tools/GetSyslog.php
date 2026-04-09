@@ -9,12 +9,10 @@ use App\Models\User;
 class GetSyslog extends AbstractAiTool
 {
     // No SyslogPolicy exists in core yet (only syslog.delete is defined).
-    // Syslog reads are per-device, so gate on device viewAny as a
-    // placeholder. Revisit if upstream adds syslog.view / SyslogPolicy.
-    public function authorize(User $user): bool
-    {
-        return $user->can('viewAny', Device::class);
-    }
+    // Syslog reads are per-device, so authorize against Device and inherit
+    // the fallback for users with explicit device assignments. Revisit if
+    // upstream adds syslog.view / SyslogPolicy.
+    protected ?string $authorizedModel = Device::class;
 
     public function name(): string
     {
