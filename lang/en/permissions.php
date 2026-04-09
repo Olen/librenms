@@ -55,6 +55,11 @@ return [
         'delete' => ['label' => 'Delete Alert Transports', 'description' => 'Delete alert transports'],
     ],
 
+    'ai-assistant' => [
+        'title' => 'AI Assistant',
+        'chat' => ['label' => 'Use AI Chat', 'description' => 'Query the AI assistant and invoke its data-access tools. Users also need per-device or global read permissions to actually see data.'],
+    ],
+
     'api' => [
         'title' => 'API Access',
         'access' => ['label' => 'API Access', 'description' => 'Access the LibreNMS REST API'],

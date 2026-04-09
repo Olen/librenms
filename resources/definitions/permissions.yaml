@@ -31,6 +31,9 @@ groups:
         - alert-transport.update
         - alert-transport.delete
 
+    ai-assistant:
+        - ai-assistant.chat
+
     api:
         - api.access
 
