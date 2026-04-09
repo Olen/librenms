@@ -39,7 +39,7 @@ class PluginManager implements PluginManagerInterface
 {
     /** @var Collection<string, Collection<int, array{plugin_name: string, instance: object}>> */
     private $hooks;
-    /** @var Collection<string, \App\Models\Plugin> */
+    /** @var Collection<string, Plugin> */
     private $plugins;
 
     /** @var array */
@@ -288,7 +288,7 @@ class PluginManager implements PluginManagerInterface
     }
 
     /**
-     * @return Collection<string, \App\Models\Plugin>
+     * @return Collection<string, Plugin>
      */
     protected function getPlugins(): Collection
     {

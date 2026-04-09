@@ -10,7 +10,7 @@ class Page extends PageHook
 
     public function authorize(\Illuminate\Contracts\Auth\Authenticatable $user): bool
     {
-        return $user->can('global-read');
+        return $user->can('ai-assistant.chat');
     }
 
     public function data(): array

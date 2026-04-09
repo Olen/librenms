@@ -20,8 +20,8 @@
  *
  * @package    LibreNMS
  * @link       http://librenms.org
- * @copyright  2024 Tony Murray
- * @author     Tony Murray <murraytony@gmail.com>
+ * @copyright  2026 LibreNMS
+ * @author     LibreNMS Contributors
  */
 
 namespace LibreNMS\Interfaces\Plugins\Hooks;

@@ -7,6 +7,8 @@ use App\Models\User;
 
 class GetPorts extends AbstractAiTool
 {
+    protected ?string $authorizedModel = Port::class;
+
     public function name(): string
     {
         return 'get_ports';

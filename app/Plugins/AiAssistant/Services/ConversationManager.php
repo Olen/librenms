@@ -101,10 +101,18 @@ class ConversationManager
     /**
      * Get an existing session or create a new one.
      * If an existing session has expired, its messages are deleted and it is reset.
+     *
+     * Session lookups are scoped to the current user. A session_id alone is
+     * not sufficient to reach someone else's conversation history — the row
+     * must also belong to the authenticated user. If a session_id collides
+     * across users (or an attacker guesses one), the query will miss and a
+     * fresh session is created for the current user instead.
      */
     private function getOrCreateSession(string $sessionId, User $user, string $interface): AiSession
     {
-        $session = AiSession::where('session_id', $sessionId)->first();
+        $session = AiSession::where('session_id', $sessionId)
+            ->where('user_id', $user->user_id)
+            ->first();
 
         if ($session) {
             // Check if session has expired
@@ -137,6 +145,7 @@ class ConversationManager
     private function buildConversationHistory(AiSession $session): array
     {
         $messages = $session->messages()
+            ->orderBy('created_at')
             ->orderBy('id')
             ->limit($this->maxHistoryMessages)
             ->get();

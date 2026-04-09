@@ -10,7 +10,7 @@ class Menu extends MenuEntryHook
 
     public function authorize(\Illuminate\Contracts\Auth\Authenticatable $user, array $settings = []): bool
     {
-        return $user->can('global-read');
+        return $user->can('ai-assistant.chat');
     }
 
     public function data(array $settings = []): array

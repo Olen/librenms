@@ -8,6 +8,8 @@ use LibreNMS\Util\Number;
 
 class GetMempools extends AbstractAiTool
 {
+    protected ?string $authorizedModel = Mempool::class;
+
     public function name(): string
     {
         return 'get_mempools';

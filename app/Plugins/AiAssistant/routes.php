@@ -27,6 +27,13 @@
 use App\Plugins\AiAssistant\Http\AiChatController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['web', 'auth'])->prefix('plugin/ai')->group(function (): void {
-    Route::post('/chat', [AiChatController::class, 'chat'])->name('plugin.ai.chat');
-});
+// The chat endpoint requires the ai-assistant.chat permission so admins
+// can grant LLM access to specific roles without having to hand out
+// admin or global-read. The throttle limits a single user to at most 30
+// requests per minute — enough for interactive chat, tight enough that
+// a malicious client can't burn the daily LLM budget in one loop.
+Route::middleware(['web', 'auth', 'can:ai-assistant.chat', 'throttle:30,1'])
+    ->prefix('plugin/ai')
+    ->group(function (): void {
+        Route::post('/chat', [AiChatController::class, 'chat'])->name('plugin.ai.chat');
+    });

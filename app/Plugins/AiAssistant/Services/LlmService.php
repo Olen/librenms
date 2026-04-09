@@ -117,8 +117,18 @@ class LlmService
 
             // No tool calls - return the content
             if (! $response->hasToolCalls()) {
+                $content = $response->content;
+
+                // Surface a single-line warning to the user when the daily
+                // budget is ≥ 80% consumed, so they get some notice before
+                // the hard cap kicks in and the assistant refuses further
+                // requests mid-conversation.
+                if ($this->costTracker->isApproachingDailyLimit()) {
+                    $content .= "\n\n_⚠ Daily AI budget is over 80% consumed — the assistant may stop responding soon._";
+                }
+
                 return [
-                    'content' => $response->content,
+                    'content' => $content,
                     'tool_calls_made' => $toolCallsMade,
                     'total_tokens' => $totalTokens,
                     'cost' => $totalCost,
@@ -209,16 +219,34 @@ class LlmService
             return ['error' => "Unknown tool: {$name}"];
         }
 
+        $tool = $this->toolMap[$name];
+
+        // Tool-level authorization chokepoint. A null user means there is
+        // no authenticated context — never allow tool execution in that
+        // case. This is fail-closed by design: tool authorization requires
+        // an identity to check against.
+        if ($user === null || ! $tool->authorize($user)) {
+            Log::info('AI tool authorization denied', [
+                'tool' => $name,
+                'user_id' => $user?->user_id,
+            ]);
+
+            return ['error' => "You do not have permission to use the {$name} tool."];
+        }
+
         try {
             $params = json_decode($argumentsJson, true) ?? [];
 
-            return $this->toolMap[$name]->execute($params, $user);
+            return $tool->execute($params, $user);
         } catch (\Exception $e) {
+            // Log full details server-side but do not surface exception
+            // messages to the LLM provider — they may contain database
+            // schema, file paths, or other infrastructure details.
             Log::warning("AI tool execution failed: {$name}", [
                 'error' => $e->getMessage(),
             ]);
 
-            return ['error' => "Tool execution failed: {$e->getMessage()}"];
+            return ['error' => 'Tool execution failed.'];
         }
     }
 

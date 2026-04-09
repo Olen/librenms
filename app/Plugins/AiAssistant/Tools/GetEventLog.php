@@ -2,11 +2,20 @@
 
 namespace App\Plugins\AiAssistant\Tools;
 
+use App\Models\Device;
 use App\Models\Eventlog;
 use App\Models\User;
 
 class GetEventLog extends AbstractAiTool
 {
+    // No EventlogPolicy exists in core yet. doc/Extensions/Authorization.md
+    // references eventlog.viewAny but it was never added to the permission
+    // migration. Gate on device viewAny until upstream closes that gap.
+    public function authorize(User $user): bool
+    {
+        return $user->can('viewAny', Device::class);
+    }
+
     public function name(): string
     {
         return 'get_event_log';
@@ -52,7 +61,6 @@ class GetEventLog extends AbstractAiTool
 
     public function execute(array $params, ?User $user = null): array
     {
-        \Log::info('GetEventLog called with params: ' . json_encode($params));
         $hours = (int) ($params['hours'] ?? 24);
         $since = now()->subHours($hours);
 
@@ -74,8 +82,14 @@ class GetEventLog extends AbstractAiTool
         if (! empty($params['device_id'])) {
             $deviceId = (int) $params['device_id'];
             // Match events for this device OR device-less events (type=external)
-            // that mention the device hostname in the message text.
-            $hostname = \App\Models\Device::where('device_id', $deviceId)->value('hostname');
+            // that mention the device hostname in the message text. The
+            // hostname lookup is scoped to devices the user can access so
+            // we don't leak hostnames of devices they shouldn't see.
+            $deviceQuery = Device::query()->where('device_id', $deviceId);
+            if ($user !== null) {
+                $deviceQuery->hasAccess($user);
+            }
+            $hostname = $deviceQuery->value('hostname');
             $shortName = $hostname ? explode('.', (string) $hostname)[0] : null;
             $query->where(function ($q) use ($deviceId, $shortName): void {
                 $q->where('device_id', $deviceId);

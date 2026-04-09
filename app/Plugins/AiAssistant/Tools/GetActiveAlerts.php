@@ -7,6 +7,8 @@ use App\Models\User;
 
 class GetActiveAlerts extends AbstractAiTool
 {
+    protected ?string $authorizedModel = Alert::class;
+
     public function name(): string
     {
         return 'get_active_alerts';

@@ -2,11 +2,19 @@
 
 namespace App\Plugins\AiAssistant\Tools;
 
+use App\Models\Device;
 use App\Models\DeviceOutage;
 use App\Models\User;
 
 class GetDeviceOutages extends AbstractAiTool
 {
+    // DeviceOutage has no dedicated policy; outages are per-device, so
+    // gate on the ability to view devices.
+    public function authorize(User $user): bool
+    {
+        return $user->can('viewAny', Device::class);
+    }
+
     public function name(): string
     {
         return 'get_device_outages';

@@ -11,6 +11,14 @@ use App\Models\User;
 
 class GetNetworkSummary extends AbstractAiTool
 {
+    // Aggregates across devices, alerts, ports and services. Without any
+    // device visibility the summary is meaningless, so gate on device
+    // viewAny. Per-entity scoping is still enforced inside execute().
+    public function authorize(User $user): bool
+    {
+        return $user->can('viewAny', Device::class);
+    }
+
     public function name(): string
     {
         return 'get_network_summary';

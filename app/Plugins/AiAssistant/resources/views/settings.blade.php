@@ -13,11 +13,25 @@
     </div>
 
     <div class="form-group">
-        <label for="api_key">API Key</label>
+        <label for="api_key">
+            API Key
+            @if(! empty($settings['api_key_is_set']))
+                <span class="label label-success">configured</span>
+            @else
+                <span class="label label-warning">not configured</span>
+            @endif
+        </label>
         <input type="password" class="form-control" id="api_key" name="settings[api_key]"
-               value="{{ $settings['api_key'] ?? '' }}"
-               placeholder="sk-...">
-        <small class="form-text text-muted">Required. Your API key for the LLM provider.</small>
+               value="" autocomplete="off"
+               placeholder="{{ ! empty($settings['api_key_is_set']) ? 'Re-enter key to save changes' : 'sk-...' }}">
+        <small class="form-text text-muted">
+            Required. Your API key for the LLM provider.
+            @if(! empty($settings['api_key_is_set']))
+                <strong>You must re-enter the API key whenever you save this form</strong> — for
+                security reasons the stored key is never displayed here and blank values are
+                treated as a clear.
+            @endif
+        </small>
     </div>
 
     <div class="form-group">

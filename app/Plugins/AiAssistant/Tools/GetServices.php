@@ -7,6 +7,8 @@ use App\Models\User;
 
 class GetServices extends AbstractAiTool
 {
+    protected ?string $authorizedModel = Service::class;
+
     public function name(): string
     {
         return 'get_services';

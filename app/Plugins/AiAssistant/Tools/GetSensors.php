@@ -7,6 +7,8 @@ use App\Models\User;
 
 class GetSensors extends AbstractAiTool
 {
+    protected ?string $authorizedModel = Sensor::class;
+
     public function name(): string
     {
         return 'get_sensors';

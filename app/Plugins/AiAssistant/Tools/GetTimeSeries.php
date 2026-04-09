@@ -10,6 +10,14 @@ use Symfony\Component\Process\Process;
 
 class GetTimeSeries extends AbstractAiTool
 {
+    // Time-series data is always resolved through a device, so gate on
+    // device viewAny. Per-device access is still enforced inside execute()
+    // via the hasAccess() scope on the device lookup query.
+    public function authorize(User $user): bool
+    {
+        return $user->can('viewAny', Device::class);
+    }
+
     public function name(): string
     {
         return 'get_time_series';
@@ -151,6 +159,16 @@ class GetTimeSeries extends AbstractAiTool
         $metricName = $params['metric_name'] ?? '';
         $hours = min((int) ($params['hours'] ?? 168), 8760);
         $targetPoints = min((int) ($params['data_points'] ?? 24), 48);
+
+        // Reject any metric_name that could escape $rrdDir via path traversal
+        // or directory separators. metric_name is used either as a literal
+        // RRD filename component (custom case) or as part of a glob pattern
+        // (processor, mempool) — both are sensitive to /, \, .. and NUL.
+        // Legitimate metric identifiers (port ifNames, storage descriptions,
+        // processor descriptions) never contain these characters.
+        if ($metricName !== '' && preg_match('#(\.\.|/|\\\\|\x00)#', $metricName)) {
+            return ['error' => 'Invalid metric_name: path separators and traversal sequences are not allowed.'];
+        }
 
         // Resolve RRD file path
         $rrdFile = $this->resolveRrdFile($device, $rrdDir, $metric, $metricName);

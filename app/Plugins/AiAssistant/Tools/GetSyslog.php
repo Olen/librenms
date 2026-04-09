@@ -2,11 +2,20 @@
 
 namespace App\Plugins\AiAssistant\Tools;
 
+use App\Models\Device;
 use App\Models\Syslog;
 use App\Models\User;
 
 class GetSyslog extends AbstractAiTool
 {
+    // No SyslogPolicy exists in core yet (only syslog.delete is defined).
+    // Syslog reads are per-device, so gate on device viewAny as a
+    // placeholder. Revisit if upstream adds syslog.view / SyslogPolicy.
+    public function authorize(User $user): bool
+    {
+        return $user->can('viewAny', Device::class);
+    }
+
     public function name(): string
     {
         return 'get_syslog';

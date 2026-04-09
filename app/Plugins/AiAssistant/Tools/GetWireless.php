@@ -7,6 +7,8 @@ use App\Models\WirelessSensor;
 
 class GetWireless extends AbstractAiTool
 {
+    protected ?string $authorizedModel = WirelessSensor::class;
+
     public function name(): string
     {
         return 'get_wireless';

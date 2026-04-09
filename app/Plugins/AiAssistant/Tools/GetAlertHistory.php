@@ -2,11 +2,16 @@
 
 namespace App\Plugins\AiAssistant\Tools;
 
+use App\Models\Alert;
 use App\Models\AlertLog;
 use App\Models\User;
 
 class GetAlertHistory extends AbstractAiTool
 {
+    // AlertLog has no dedicated policy; Alert is the same security domain,
+    // so we gate history reads on the ability to view active alerts.
+    protected ?string $authorizedModel = Alert::class;
+
     public function name(): string
     {
         return 'get_alert_history';

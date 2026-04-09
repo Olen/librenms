@@ -8,6 +8,8 @@ use LibreNMS\Util\Number;
 
 class GetStorage extends AbstractAiTool
 {
+    protected ?string $authorizedModel = Storage::class;
+
     public function name(): string
     {
         return 'get_storage';

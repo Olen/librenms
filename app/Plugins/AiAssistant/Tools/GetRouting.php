@@ -7,6 +7,8 @@ use App\Models\User;
 
 class GetRouting extends AbstractAiTool
 {
+    protected ?string $authorizedModel = BgpPeer::class;
+
     public function name(): string
     {
         return 'get_routing';

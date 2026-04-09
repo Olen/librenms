@@ -7,6 +7,8 @@ use App\Models\User;
 
 class GetProcessors extends AbstractAiTool
 {
+    protected ?string $authorizedModel = Processor::class;
+
     public function name(): string
     {
         return 'get_processors';

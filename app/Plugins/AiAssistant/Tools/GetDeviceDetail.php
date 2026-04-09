@@ -7,6 +7,8 @@ use App\Models\User;
 
 class GetDeviceDetail extends AbstractAiTool
 {
+    protected ?string $authorizedModel = Device::class;
+
     public function name(): string
     {
         return 'get_device_detail';

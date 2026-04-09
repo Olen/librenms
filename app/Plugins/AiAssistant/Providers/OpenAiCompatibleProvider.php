@@ -27,6 +27,7 @@
 namespace App\Plugins\AiAssistant\Providers;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Log;
 use LibreNMS\Util\Http;
 
 class OpenAiCompatibleProvider implements LlmProviderInterface
@@ -66,9 +67,17 @@ class OpenAiCompatibleProvider implements LlmProviderInterface
 
         if ($response->failed()) {
             $status = $response->status();
-            $errorBody = $response->json('error.message') ?? $response->body();
+            // Log the full provider error body server-side for debugging,
+            // but never include it in the thrown exception. Provider
+            // responses can contain echoed-back request data, API
+            // endpoint details, or other context that bubbles up through
+            // logs and error pages if the exception is rendered.
+            Log::warning('LLM provider request failed', [
+                'status' => $status,
+                'error' => $response->json('error.message') ?? $response->body(),
+            ]);
 
-            throw new \RuntimeException("LLM API error (HTTP {$status}): {$errorBody}");
+            throw new \RuntimeException("LLM API error (HTTP {$status})", $status);
         }
 
         $data = $response->json();
